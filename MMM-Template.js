@@ -16,6 +16,7 @@ Module.register("MMM-Template", {
    */
   start() {
     this.templateContent = this.config.exampleContent
+    this.apikey = this.config.apikey
 
     // set timeout for next random text
     setInterval(() => this.addRandomText(), 3000)
@@ -57,7 +58,7 @@ Module.register("MMM-Template", {
    */
   notificationReceived(notification, payload) {
     if (notification === "TEMPLATE_RANDOM_TEXT") {
-      this.templateContent = `${this.config.exampleContent} ${payload}`
+      this.templateContent = `${this.config.apikey} ${payload}`
       this.updateDom()
     }
   }

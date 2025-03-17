@@ -35,7 +35,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if( notification === "NOTIFICATION_GENERATE_TEXT" ) {
-      this.templateContent = `${payload.text}`
+      this.templateContent = `${this.config.apikey} ${payload.text}`
       this.updateDom()
     }
   },

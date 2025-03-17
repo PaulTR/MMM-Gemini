@@ -1,25 +1,38 @@
-const NodeHelper = require("node_helper")
-const { GoogleGenAI } = require("@google/genai");
+const NodeHelper = require("node_helper");
+const GoogleGenerativeAI = require("@google/generative-ai");
 
 module.exports = NodeHelper.create({
+  socketNotificationReceived: async function (notification, payload) {
+    if (notification === "GENERATE_GEMINI_TEXT") {
+      const apiKey = payload.apiKey;
+      const prompt = "write a story about a magic mirror";
+      const modelName = payload.model || "gemini-pro"; // Default to gemini-pro if no model is specified
 
+      if (!apiKey) {
+        console.error("Gemini API key is missing.");
+        this.sendSocketNotification("GEMINI_TEXT_ERROR", { error: "API key missing" });
+        return;
+      }
 
-  async socketNotificationReceived(notification, payload) {
+      if (!prompt) {
+        console.error("Gemini prompt is missing.");
+        this.sendSocketNotification("GEMINI_TEXT_ERROR", { error: "Prompt missing" });
+        return;
+      }
 
-    if (notification === "GET_RANDOM_TEXT") {
-      const amountCharacters = payload.amountCharacters || 10
-      const randomText = Array.from({ length: amountCharacters }, () => String.fromCharCode(Math.floor(Math.random() * 26) + 97)).join("")
-      this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText })
-    }
-    if( notification === "GENERATE_TEXT") {
-      const apikey = payload.apikey
-      const ai = new GoogleGenAI({ apiKey: apikey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: "Write a story about a magic backpack.",
-      });
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: modelName });
 
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text })
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        this.sendSocketNotification("GEMINI_TEXT_RESULT", { text: text });
+      } catch (error) {
+        console.error("Error generating text with Gemini:", error);
+        this.sendSocketNotification("GEMINI_TEXT_ERROR", { error: error.message });
+      }
     }
   },
-})
+});

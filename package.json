@@ -26,5 +26,8 @@
     "@stylistic/eslint-plugin": "^2.7.2",
     "eslint": "^9.10.0",
     "globals": "^15.9.0"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0"
   }
 }

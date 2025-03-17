@@ -19,7 +19,7 @@ Module.register("MMM-Template", {
     this.apikey = this.config.apikey
 
     // set timeout for next random text
-    setInterval(() => this.addRandomText(), 3000)
+    setInterval(() => this.generateText(), 30000)
   },
 
   /**
@@ -50,6 +50,10 @@ Module.register("MMM-Template", {
     this.sendSocketNotification("GET_RANDOM_TEXT", { amountCharacters: 15 })
   },
 
+  generateText() {
+    this.sendSocketNotification("GENERATE_TEXT",{ key: ${this.config.apikey} })
+  }
+
   /**
    * This is the place to receive notifications from other modules or the system.
    *
@@ -58,7 +62,7 @@ Module.register("MMM-Template", {
    */
   notificationReceived(notification, payload) {
     if (notification === "TEMPLATE_RANDOM_TEXT") {
-      this.templateContent = `${this.config.apikey} ${payload}`
+      this.templateContent = `${this.config.exampleContent} ${payload}`
       this.updateDom()
     }
   }

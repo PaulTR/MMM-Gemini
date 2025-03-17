@@ -6,7 +6,7 @@ module.exports = NodeHelper.create({
     if (notification === "GENERATE_GEMINI_TEXT") {
       const apiKey = payload.apiKey;
       const prompt = "write a story about a magic mirror";
-      const modelName = payload.model || "ggemini-2.0-flash"; // Default to gemini-pro if no model is specified
+      const modelName = payload.model || "gemini-2.0-flash"; // Default to gemini-pro if no model is specified
 
       if (!apiKey) {
         console.error("Gemini API key is missing.");

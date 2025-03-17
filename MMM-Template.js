@@ -35,7 +35,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if( notification === "NOTIFICATION_GENERATE_TEXT" ) {
-      this.templateContent = `${this.config.apikey} ${payload.text}`
+      this.templateContent = `test ${payload.text}`
       this.updateDom()
     }
   },
@@ -55,7 +55,7 @@ Module.register("MMM-Template", {
   },
 
   generateText() {
-    this.sendSocketNotification("GENERATE_TEXT", { apikey: ${this.config.apikey} })
+    this.sendSocketNotification("GENERATE_TEXT", { test: 15 })
   }
 
   // /**

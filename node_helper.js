@@ -1,5 +1,5 @@
 const NodeHelper = require("node_helper");
-const GoogleGenerativeAI = require("@google/generative-ai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 module.exports = NodeHelper.create({
   socketNotificationReceived: async function (notification, payload) {

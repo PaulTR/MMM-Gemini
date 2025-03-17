@@ -1,4 +1,5 @@
 const NodeHelper = require("node_helper")
+const { GoogleGenAI } = require("@google/genai");
 
 module.exports = NodeHelper.create({
 

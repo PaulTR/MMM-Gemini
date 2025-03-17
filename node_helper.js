@@ -20,21 +20,21 @@ module.exports = NodeHelper.create({
       }
 
       try {
-        const { GoogleGenerativeAI } = require("@google/generative-ai");
+        // const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-        const ai = new GoogleGenAI({ apiKey: apiKey });
+        // const ai = new GoogleGenAI({ apiKey: apiKey });
 
-        const model = genAI.getGenerativeModel({ model: modelName })
+        // const model = genAI.getGenerativeModel({ model: modelName })
 
-        const response = await ai.models.generateContent({
-          model: "gemini-2.0-flash",
-          contents: "Write a story about a magic backpack.",
-        })
+        // const response = await ai.models.generateContent({
+        //   model: "gemini-2.0-flash",
+        //   contents: "Write a story about a magic backpack.",
+        // })
 
-        console.log(response.text);
-        const text = response.text();
+        // console.log(response.text);
+        // const text = response.text();
 
-        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: text });
+        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "TEST TEST" });
       } catch (error) {
         console.error("Error generating text with Gemini:", error);
         this.sendSocketNotification("GEMINI_TEXT_ERROR", { error: error.message });

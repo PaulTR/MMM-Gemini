@@ -31,7 +31,7 @@ Module.register("MMM-Template", {
    */
   socketNotificationReceived: function (notification, payload) {
     if (notification === "EXAMPLE_NOTIFICATION") {
-      this.templateContent = `${this.config.exampleContent} ${payload.text}`
+      this.templateContent = `${this.config.apikey} ${payload.text}`
       this.updateDom()
     }
   },

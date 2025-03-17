@@ -1,5 +1,4 @@
 const NodeHelper = require("node_helper");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 module.exports = NodeHelper.create({
   socketNotificationReceived: async function (notification, payload) {
@@ -21,6 +20,8 @@ module.exports = NodeHelper.create({
       }
 
       try {
+        const { GoogleGenerativeAI } = require("@google/generative-ai");
+
         const ai = new GoogleGenAI({ apiKey: apiKey });
 
         const model = genAI.getGenerativeModel({ model: modelName })

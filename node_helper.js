@@ -1,4 +1,6 @@
 const NodeHelper = require("node_helper")
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
 
 module.exports = NodeHelper.create({
 
@@ -9,7 +11,17 @@ module.exports = NodeHelper.create({
       this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText })
     }
     if( notification === "GENERATE_TEXT") {
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Generated text" })
+      const apiKey = payload.apikey
+      
+      const ai = new GoogleGenAI({ apiKey: apiKey });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: "Write a story about a magic mirror.",
+      });
+
+      console.log(response.text);
+      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text })
     }
   },
 })

@@ -14,7 +14,7 @@ module.exports = NodeHelper.create({
       const apiKey = payload.apikey;
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Use gemini-pro or gemini-pro-vision
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // Use gemini-pro or gemini-pro-vision
 
       try {
         const result = await model.generateContent("Write a story about a magic mirror.");

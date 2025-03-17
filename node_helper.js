@@ -9,7 +9,7 @@ module.exports = NodeHelper.create({
       this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText })
     }
     if( notification === "GENERATE_TEXT") {
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Generate text" })
+      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Generated text" })
     }
   },
 })

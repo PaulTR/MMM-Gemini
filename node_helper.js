@@ -6,7 +6,7 @@ module.exports = NodeHelper.create({
     if (notification === "GENERATE_GEMINI_TEXT") {
       const apiKey = payload.apiKey;
       const prompt = "write a story about a magic mirror";
-      const modelName = payload.model || "gemini-pro"; // Default to gemini-pro if no model is specified
+      const modelName = payload.model || "ggemini-2.0-flash"; // Default to gemini-pro if no model is specified
 
       if (!apiKey) {
         console.error("Gemini API key is missing.");
@@ -21,11 +21,16 @@ module.exports = NodeHelper.create({
       }
 
       try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: modelName });
+        const ai = new GoogleGenAI({ apiKey: apiKey });
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
+        const model = genAI.getGenerativeModel({ model: modelName })
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: "Write a story about a magic backpack.",
+        })
+
+        console.log(response.text);
         const text = response.text();
 
         this.sendSocketNotification("GEMINI_TEXT_RESULT", { text: text });

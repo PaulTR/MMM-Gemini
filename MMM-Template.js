@@ -55,7 +55,7 @@ Module.register("MMM-Template", {
   },
 
   generateText() {
-    this.sendSocketNotification("GENERATE_TEXT", { apikey: ${this.config.apikey} })
+    this.sendSocketNotification("GENERATE_TEXT", { apikey: `${this.config.apikey}` })
   }
 
   // /**

@@ -35,7 +35,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if( notification === "NOTIFICATION_GENERATE_TEXT" ) {
-      this.templateContent = `${payload.text}`
+      this.templateContent = 'test'
       this.updateDom()
     }
   },
@@ -55,19 +55,19 @@ Module.register("MMM-Template", {
   },
 
   generateText() {
-    this.sendSocketNotification("GENERATE_TEXT", { })
+    this.sendSocketNotification("GENERATE_TEXT", { test: 15 })
   }
 
-  /**
-   * This is the place to receive notifications from other modules or the system.
-   *
-   * @param {string} notification The notification ID, it is preferred that it prefixes your module name
-   * @param {number} payload the payload type.
-   */
-  notificationReceived(notification, payload) {
-    if (notification === "TEMPLATE_RANDOM_TEXT") {
-      this.templateContent = `${this.config.exampleContent} ${payload}`
-      this.updateDom()
-    }
-  }
+  // /**
+  //  * This is the place to receive notifications from other modules or the system.
+  //  *
+  //  * @param {string} notification The notification ID, it is preferred that it prefixes your module name
+  //  * @param {number} payload the payload type.
+  //  */
+  // notificationReceived(notification, payload) {
+  //   if (notification === "TEMPLATE_RANDOM_TEXT") {
+  //     this.templateContent = `${this.config.exampleContent} ${payload}`
+  //     this.updateDom()
+  //   }
+  // }
 })

@@ -1,5 +1,5 @@
 const NodeHelper = require("node_helper");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
 module.exports = NodeHelper.create({
 
@@ -8,13 +8,8 @@ module.exports = NodeHelper.create({
 
   initializeGenAI: function(apiKey) {
     if (!this.genAI) {
-      this.genAI = new GoogleGenerativeAI(apiKey, { apiVersion: "v1alpha" });
+        const ai = new GoogleGenAI({ apiKey: apiKey });
       log("Created genai")
-    }
-
-    if(!this.model) {
-      this.model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
-      log("Created model")
     }
   },
 
@@ -28,12 +23,16 @@ module.exports = NodeHelper.create({
     }
     if (notification === "GENERATE_TEXT") {
       log("Generate_text")
-      if( !this.model) {
-        log("model not defined")
+      
+      if( !this.genAI) {
+        log("genAI not defined")
       }
+
       try {
-        const result = await this.model.generateContent("Write a story about a magic mirror.");
-        const response = await result.response;
+        const response = await ai.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: "Write a story about a magic backpack.",
+        });
         const text = response.text();
 
         console.log(text);

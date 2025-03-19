@@ -18,10 +18,8 @@ Module.register("MMM-Template", {
     this.templateContent = this.config.exampleContent
     this.apikey = this.config.apikey
 
-    initializeGenAI(this.apikey)
-
     // set timeout for next random text
-    setInterval(() => this.generateText(), 30000)
+    setInterval(() => this.generateText(), 3000)
   },
 
   /**
@@ -57,6 +55,7 @@ Module.register("MMM-Template", {
   },
 
   generateText() {
+    console.log("generateText from template.js")
     this.sendSocketNotification("GENERATE_TEXT", { apikey: `${this.config.apikey}` })
   }
 

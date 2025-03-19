@@ -12,7 +12,8 @@ module.exports = NodeHelper.create({
     }
     if (notification === "GENERATE_TEXT") {
       const apiKey = payload.apikey;
-
+      console.log(apiKey)
+      
       const ai = new GoogleGenAI({ apiKey: apiKey });
 
         const response = await ai.models.generateContent({

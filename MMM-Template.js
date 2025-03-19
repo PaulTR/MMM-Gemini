@@ -35,7 +35,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if( notification === "NOTIFICATION_GENERATE_TEXT" ) {
-      this.templateContent = `test ${payload.text}`
+      this.templateContent = `${payload.text}`
       this.updateDom()
     }
   },

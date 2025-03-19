@@ -21,7 +21,7 @@ module.exports = NodeHelper.create({
         });
 
         console.log(response.text);
-        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: text });
+        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text });
       }
     }
   },

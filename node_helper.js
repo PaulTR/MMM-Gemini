@@ -22,9 +22,6 @@ module.exports = NodeHelper.create({
 
         console.log(response.text);
         this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: text });
-      } catch (error) {
-        console.error("Error generating text:", error);
-        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error generating text."});
       }
     }
   },

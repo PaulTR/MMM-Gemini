@@ -18,8 +18,10 @@ Module.register("MMM-Template", {
     this.templateContent = this.config.exampleContent
     this.apikey = this.config.apikey
 
+    initializeGenAI(this.apikey)
+
     // set timeout for next random text
-    setInterval(() => this.generateText(), 3000)
+    setInterval(() => this.generateText(), 30000)
   },
 
   /**

@@ -2,6 +2,19 @@ const NodeHelper = require("node_helper");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 module.exports = NodeHelper.create({
+
+  genAi: null,
+  model: null,
+
+  initializeGenAI: function(apiKey) {
+    if (!this.genAI) {
+      this.genAI = new GoogleGenerativeAI(apiKey, { apiVersion: "v1alpha" });
+    }
+    if(!this.model) {
+      this.model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
+    }
+  },
+
   async socketNotificationReceived(notification, payload) {
     if (notification === "GET_RANDOM_TEXT") {
       const amountCharacters = payload.amountCharacters || 10;
@@ -11,13 +24,8 @@ module.exports = NodeHelper.create({
       this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText });
     }
     if (notification === "GENERATE_TEXT") {
-      const apiKey = payload.apikey;
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // Use gemini-pro or gemini-pro-vision
-
       try {
-        const result = await model.generateContent("Write a story about a magic mirror.");
+        const result = await this.model.generateContent("Write a story about a magic mirror.");
         const response = await result.response;
         const text = response.text();
 

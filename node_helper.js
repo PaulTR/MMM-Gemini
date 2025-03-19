@@ -2,6 +2,15 @@ const NodeHelper = require("node_helper");
 const { GoogleGenAI } = require("@google/genai");
 
 module.exports = NodeHelper.create({
+
+  genAI: null, // Initialize genAI as null
+
+  initializeGenAI: function(apiKey) {
+    if (!this.genAI) {
+      this.genAI = new GoogleGenAI({ apiKey: apiKey });
+    }
+  },
+
   async socketNotificationReceived(notification, payload) {
     if (notification === "GET_RANDOM_TEXT") {
       const amountCharacters = payload.amountCharacters || 10;
@@ -12,18 +21,15 @@ module.exports = NodeHelper.create({
     }
     if (notification === "GENERATE_TEXT") {
       const apiKey = payload.apikey;
-      console.log(apiKey)
-      
-      const ai = new GoogleGenAI({ apiKey: apiKey });
+      this.initializeGenAI(apiKey);
 
-        const response = await ai.models.generateContent({
-          model: "gemini-2.0-flash",
-          contents: "Write a joke about a magic backpack. Keep it under 40 words",
-        });
+      const response = await this.genAI.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: "Write a joke about a magic backpack. Keep it under 40 words",
+      });
 
-        console.log(response.text);
-        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text });
-      }
+      console.log(response.text);
+      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text });
     }
   },
-);
+});

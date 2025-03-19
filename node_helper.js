@@ -2,17 +2,6 @@ const NodeHelper = require("node_helper");
 const { GoogleGenAI } = require("@google/genai");
 
 module.exports = NodeHelper.create({
-
-  genAi: null,
-  model: null,
-
-  initializeGenAI: function(apiKey) {
-    if (!this.genAI) {
-        const ai = new GoogleGenAI({ apiKey: apiKey });
-      log("Created genai")
-    }
-  },
-
   async socketNotificationReceived(notification, payload) {
     if (notification === "GET_RANDOM_TEXT") {
       const amountCharacters = payload.amountCharacters || 10;
@@ -22,20 +11,16 @@ module.exports = NodeHelper.create({
       this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText });
     }
     if (notification === "GENERATE_TEXT") {
-      log("Generate_text")
-      
-      if( !this.genAI) {
-        log("genAI not defined")
-      }
+      const apiKey = payload.apikey;
 
-      try {
+      const ai = new GoogleGenAI({ apiKey: apiKey });
+
         const response = await ai.models.generateContent({
           model: "gemini-2.0-flash",
-          contents: "Write a story about a magic backpack.",
+          contents: "Write a joke about a magic backpack. Keep it under 40 words",
         });
-        const text = response.text();
 
-        console.log(text);
+        console.log(response.text);
         this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: text });
       } catch (error) {
         console.error("Error generating text:", error);
@@ -43,4 +28,4 @@ module.exports = NodeHelper.create({
       }
     }
   },
-});
+);

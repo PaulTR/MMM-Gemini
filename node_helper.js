@@ -9,9 +9,12 @@ module.exports = NodeHelper.create({
   initializeGenAI: function(apiKey) {
     if (!this.genAI) {
       this.genAI = new GoogleGenerativeAI(apiKey, { apiVersion: "v1alpha" });
+      log("Created genai")
     }
+
     if(!this.model) {
       this.model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
+      log("Created model")
     }
   },
 
@@ -24,6 +27,10 @@ module.exports = NodeHelper.create({
       this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText });
     }
     if (notification === "GENERATE_TEXT") {
+      log("Generate_text")
+      if( !this.model) {
+        log("model not defined")
+      }
       try {
         const result = await this.model.generateContent("Write a story about a magic mirror.");
         const response = await result.response;

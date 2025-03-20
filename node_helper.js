@@ -32,5 +32,14 @@ module.exports = NodeHelper.create({
       console.log(response.text);
       this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text });
     }
+
+    if( notification === "START_CHAT" ) {
+      const apiKey = payload.apikey;
+      this.initializeGenAI(apiKey);
+
+      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Starting chat"})
+
+      
+    }
   },
 });

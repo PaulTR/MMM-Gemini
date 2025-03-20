@@ -61,6 +61,8 @@ Module.register("MMM-Template", {
   }
 
   startChat() {
+    this.templateContent = `start chat`
+    this.updateDom()
     this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}` })
   }
 

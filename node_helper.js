@@ -44,7 +44,9 @@ module.exports = NodeHelper.create({
                     config: {
                         numberOfImages: 1,
                         includeRaiReason: true,
-                        seed: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+                        personGeneration: PersonGeneration.ALLOW_ADULT,
+                        safetyFilterLevel: SafetyFilterLevel.BLOCK_ONLY_HIGH,
+                        seed: 100,
                     },
                 });
 

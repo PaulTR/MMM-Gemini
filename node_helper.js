@@ -45,7 +45,7 @@ module.exports = NodeHelper.create({
                         numberOfImages: 1,
                         includeRaiReason: true,
                         personGeneration: PersonGeneration.ALLOW_ADULT,
-                        safetyFilterLevel: SafetyFilterLevel.BLOCK_ONLY_HIGH,
+                        // safetyFilterLevel: SafetyFilterLevel.BLOCK_ONLY_HIGH,
                         // seed: 100,
                     },
                 });

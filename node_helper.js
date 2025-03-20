@@ -40,7 +40,7 @@ module.exports = NodeHelper.create({
 
                 const response = await this.genAI.models.generateImages({ // Corrected: use 'this.genAI'
                     model: 'imagen-3.0-generate-002',
-                    prompt: 'Robot holding a red skateboard',
+                    prompt: 'a magical fantasy castle',
                     config: {
                         numberOfImages: 1,
                         includeRaiReason: true,

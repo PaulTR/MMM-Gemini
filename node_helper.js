@@ -73,8 +73,8 @@ module.exports = NodeHelper.create({
           },
           onclose: () => {
             console.log('Connection to Gemini Live API closed.');
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Disconnected from Gemini Live API"});
-            this.stopRecording(); // Stop recording when the connection closes
+            // this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Disconnected from Gemini Live API"});
+            // this.stopRecording(); // Stop recording when the connection closes
           },
         },
       });

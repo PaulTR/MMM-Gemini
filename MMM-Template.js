@@ -21,7 +21,7 @@ Module.register("MMM-Template", {
     // set timeout for next random text
     // setInterval(() => this.generateText(), 10000)
 
-    this.startChat()
+    this.startChat.bind(this)
   },
 
   /**

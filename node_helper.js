@@ -11,7 +11,7 @@ module.exports = NodeHelper.create({
   initializeGenAI: function(apiKey) {
     if (!this.genAI) {
       console.log("initializing!")
-      this.genAI = new GoogleGenAI({ apiKey: apiKey });
+      this.genAI = new GoogleGenAI({ apiKey: apiKey, http_options: {'api_version': 'v1alpha'} });
     }
   },
 

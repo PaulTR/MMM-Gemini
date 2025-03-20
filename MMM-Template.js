@@ -19,7 +19,7 @@ Module.register("MMM-Template", {
     this.apikey = this.config.apikey
 
     // set timeout for next random text
-    setInterval(() => this.generateImage(), 30000)
+    setInterval(() => this.generateImage(), 3000)
 
     // this.startChat()
 
@@ -42,7 +42,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if (notification === "NOTIFICATION_GENERATE_IMAGE") {
-        this.templateContent = "<img src='./gemini-native-image.png' width='600' height='600' alt='test'>"
+        this.templateContent = "<img src='./modules/MMM-Template/gemini-native-image.png' width='600' height='600' alt='test'>"
         this.updateDom();
     }
   },

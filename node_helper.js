@@ -111,7 +111,7 @@ module.exports = NodeHelper.create({
               this.stopLiveChat();
             }
           }
-        })
+        }
         .on('error', (err) => {
           console.error('Recording error:', err);
           this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording error: " + err.message });

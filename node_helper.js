@@ -1,7 +1,6 @@
 const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality } = require("@google/genai");
 const Record = require('record-audio') // Capitalize Record
-const record = new Record(); // instantiate it.
 
 module.exports = NodeHelper.create({
 
@@ -93,7 +92,10 @@ module.exports = NodeHelper.create({
     //   return;
     // }
 
-    // this.recorder = record(); // no longer needed. this.recorder is now set below.
+    this.record = RecordAudio();
+
+    console.log('Start of recording');
+    this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Start of recording" });
 
     const recordOptions = {
       sampleRate: 16000,

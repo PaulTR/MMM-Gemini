@@ -54,7 +54,7 @@ module.exports = NodeHelper.create({
                 if (imageBytes) {
                     const buffer = Buffer.from(imageBytes, 'base64');
                     const randomSuffix = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-                    const filename = `./modules/MMM-Template/gemini-native-image-${randomSuffix}.png`;
+                    const filename = `./modules/MMM-Template/generated-images/gemini-native-image-${randomSuffix}.png`;
 
                     fs.writeFile(filename, buffer, (err) => {
                         if (err) {

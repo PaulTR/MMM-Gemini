@@ -21,9 +21,8 @@ Module.register("MMM-Template", {
     // set timeout for next random text
     // setInterval(() => this.generateText(), 10000)
 
-    setTimeout(() => {
-      this.startChat();
-    }, 2000); // 2000 milliseconds = 2 seconds
+    this.startChat()
+    
   },
 
   /**
@@ -62,7 +61,7 @@ Module.register("MMM-Template", {
     this.sendSocketNotification("GENERATE_TEXT", { apikey: `${this.config.apikey}` })
   }
 
-  startChat() {
+  startChat: async function() {
     console.log("start chat")
     this.templateContent = "start chat"
     this.updateDom()

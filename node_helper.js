@@ -1,6 +1,6 @@
 const NodeHelper = require("node_helper");
 const { GoogleGenAI } = require("@google/genai");
-const { LiveStream } = require("@google-cloud/speech/src/v1/speech_client");
+//const { LiveStream } = require("@google-cloud/speech/src/v1/speech_client"); // REMOVE THIS LINE
 
 //Need to install this
 //npm install --save record-audio

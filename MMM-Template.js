@@ -52,9 +52,9 @@ Module.register("MMM-Template", {
    */
   getDom() {
     const wrapper = document.createElement("div")
-    // wrapper.innerHTML = `${this.templateContent}`
-    var img = wrapper.createElement('img')
-    img.src = "/home/ptruiz/MagicMirror/modules/MMM-Template/image.png"
+    wrapper.innerHTML = `${this.templateContent}`
+
+    Log.error(wrapper)
     return wrapper
   },
 

@@ -63,8 +63,8 @@ module.exports = NodeHelper.create({
             this.startRecording();
           },
           onmessage: (event) => {
-            console.log('Received message from the server: %s\n', event.data);
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + event.data }); // Send response to module
+            console.log('Received message from the server: %s\n', event);
+            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + event }); // Send response to module
           },
           onerror: (event) => {
             console.error('Error occurred: %s\n', event.error);
@@ -104,7 +104,7 @@ module.exports = NodeHelper.create({
           if (this.liveSession) { // Important check: only send if connected
             try {
               console.log("Sending audio chunk to live session");
-              this.liveSession.sendRealtimeInput({media: createBlob(chunk)});
+              this.liveSession.sendRealtimeInput({media: {data: chunk, mimeType: 'audio/pcm;rate=16000'}});
             } catch (sendError) {
               console.error("Error sending audio to live session:", sendError);
               this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + sendError.message });

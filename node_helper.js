@@ -22,6 +22,34 @@ module.exports = NodeHelper.create({
       ).join("");
       this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText });
     }
+
+    if( notification === "GENERATE_IMAGE") {
+      const apiKey = payload.apikey;
+      this.initializeGenAI(apiKey);
+
+      const response = await this.genAI.models.generateContent({
+        model: "gemini-2.0-flash",
+        generationConfig: {
+            responseModalities: ['Text', 'Image']
+        },
+        contents: "Please generate an image of a magical backpack in a fantasy style",
+      });
+
+      for (const part of  response.response.candidates[0].content.parts) {
+        // Based on the part type, either show the text or save the image
+        if (part.text) {
+          console.log(part.text);
+        } else if (part.inlineData) {
+          const imageData = part.inlineData.data;
+          const buffer = Buffer.from(imageData, 'base64');
+          fs.writeFileSync('gemini-native-image.png', buffer);
+          console.log('Image saved as gemini-native-image.png');
+        }
+      }
+
+      this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: "image" });
+    }
+
     if (notification === "GENERATE_TEXT") {
       const apiKey = payload.apikey;
       this.initializeGenAI(apiKey);

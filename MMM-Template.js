@@ -41,6 +41,9 @@ Module.register("MMM-Template", {
       this.templateContent = `${payload.text}`
       this.updateDom()
     }
+    if( notification === "NOTIFICATION_GENERATE_IMAGE" ) {
+      this.templateContent = `<img src="gemini-native-image.png" />`
+    }
   },
 
   /**
@@ -48,7 +51,7 @@ Module.register("MMM-Template", {
    */
   getDom() {
     const wrapper = document.createElement("div")
-    wrapper.innerHTML = `<b>Title</b><br />${this.templateContent}`
+    wrapper.innerHTML = `${this.templateContent}`
 
     return wrapper
   },

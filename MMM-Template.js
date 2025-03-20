@@ -51,7 +51,7 @@ Module.register("MMM-Template", {
    * Render the page we're on.
    */
   getDom() {
-    const wrapper = document.createElement("div")
+    const wrapper = document
     wrapper.innerHTML = `${this.templateContent}`
 
     Log.error(wrapper)

@@ -28,6 +28,7 @@
     "globals": "^15.9.0"
   },
   "dependencies": {
-    "@google/genai": "^0.4.0"
+    "@google/genai": "^0.4.0",
+    "record-audio": "^1.0.0"
   }
 }

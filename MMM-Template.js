@@ -22,7 +22,7 @@ Module.register("MMM-Template", {
     // setInterval(() => this.generateText(), 10000)
 
     this.startChat()
-    
+
   },
 
   /**
@@ -59,13 +59,13 @@ Module.register("MMM-Template", {
 
   generateText() {
     this.sendSocketNotification("GENERATE_TEXT", { apikey: `${this.config.apikey}` })
-  }
+  },
 
   startChat: async function() {
     console.log("start chat")
     this.templateContent = "start chat"
     this.updateDom()
-    // this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}` })
+    this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}` })
   }
 })
 

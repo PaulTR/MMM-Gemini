@@ -42,7 +42,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if( notification === "NOTIFICATION_GENERATE_IMAGE" ) {
-      this.templateContent = '<img src="example_1.png" border=0>'
+      this.templateContent = '<img src="example_1.png" border=0><br /><br /><br /><br /><img src="example_1.png" border=0>'
       this.updateDom()
     }
   },

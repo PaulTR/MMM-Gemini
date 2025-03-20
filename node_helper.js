@@ -104,7 +104,7 @@ module.exports = NodeHelper.create({
           if (this.liveSession) { // Important check: only send if connected
             try {
               console.log("Sending audio chunk to live session");
-              this.liveSession.send(chunk);
+              this.liveSession.sendRealtimeInput({media: createBlog(chunk));
             } catch (sendError) {
               console.error("Error sending audio to live session:", sendError);
               this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + sendError.message });

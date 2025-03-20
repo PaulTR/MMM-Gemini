@@ -42,7 +42,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if( notification === "NOTIFICATION_GENERATE_IMAGE" ) {
-      this.templateContent = `<img src="/home/ptruiz/MagicMirror/gemini-native-image.png" border=0>`
+      this.templateContent = `<img src="/home/ptruiz/MagicMirror/gemini-native-image.png" width="600" height="600">`
       this.updateDom()
     }
   },

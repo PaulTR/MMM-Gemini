@@ -56,7 +56,7 @@ module.exports = NodeHelper.create({
             //         const buffer = Buffer.from(imageBytes, 'base64');
 
             //         // Save the image to a file
-            //         const filename = '/modules/MMM-Template/gemini-native-image.png'; // Specify the filename
+            //         const filename = './modules/MMM-Template/gemini-native-image.png'; // Specify the filename
 
             //         fs.writeFile(filename, buffer, (err) => {  // Corrected: use fs.writeFile for Node.js
             //             if (err) {

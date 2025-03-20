@@ -2,6 +2,7 @@ const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality } = require("@google/genai");
 const recorder = require('node-record-lpcm16');
 const fs = require('fs'); // Import the 'fs' module for file system operations in Node.js
+const Log = require("logger");
 
 
 module.exports = NodeHelper.create({

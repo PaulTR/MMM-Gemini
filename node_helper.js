@@ -63,8 +63,9 @@ module.exports = NodeHelper.create({
             this.startRecording();
           },
           onmessage: (event) => {
-            console.log('Received message from the server: %s\n', event);
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + event }); // Send response to module
+            const eventString = JSON.stringify(event, null, 2); // Add indentation for readability
+            console.log('Received message from the server:\n', eventString);
+            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + eventString }); // Send stringified event
           },
           onerror: (event) => {
             console.error('Error occurred: %s\n', event.error);
@@ -88,11 +89,11 @@ module.exports = NodeHelper.create({
 
   startRecording() {
     const recordOptions = {
-      sampleRateHertz: 16000, // Correct option name
+      sampleRateHertz: 16000,
       channels: 1,
       threshold: 0.5,
-      recordProgram: 'rec', // or 'sox', depending on what's installed
-      silence: '1.0', // Add a silence threshold (optional but good practice)
+      recordProgram: 'rec',
+      silence: '1.0',
     };
 
     try {

@@ -19,7 +19,7 @@ Module.register("MMM-Template", {
     this.apikey = this.config.apikey
 
     // set timeout for next random text
-    setInterval(() => this.generateText(), 30000)
+    setInterval(() => this.generateImage(), 30000)
 
     // this.startChat()
 
@@ -61,6 +61,10 @@ Module.register("MMM-Template", {
   },
 
   generateText() {
+    this.sendSocketNotification("GENERATE_TEXT", { apikey: `${this.config.apikey}` })
+  },
+
+  generateImage() {
     this.sendSocketNotification("GENERATE_TEXT", { apikey: `${this.config.apikey}` })
   },
 

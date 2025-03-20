@@ -65,7 +65,7 @@ Module.register("MMM-Template", {
   },
 
   generateImage() {
-    this.sendSocketNotification("GENERATE_TEXT", { apikey: `${this.config.apikey}` })
+    this.sendSocketNotification("GENERATE_IMAGE", { apikey: `${this.config.apikey}` })
   },
 
   startChat: async function() {

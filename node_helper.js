@@ -32,7 +32,7 @@ module.exports = NodeHelper.create({
         generationConfig: {
             responseModalities: ['Text', 'Image']
         },
-        contents: "Please generate an image of a magical backpack in a fantasy style",
+        contents: "Please generate an image of a magical red dragon in a fantasy style",
       });
 
       for (const part of  response.response.candidates[0].content.parts) {

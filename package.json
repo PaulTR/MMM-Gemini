@@ -29,6 +29,6 @@
   },
   "dependencies": {
     "@google/genai": "^0.4.0",
-    "record-audio": "^1.0.0"
+    "node-record-lpcm16": "^1.0.1"
   }
 }

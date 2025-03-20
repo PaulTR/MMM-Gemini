@@ -42,9 +42,8 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if( notification === "NOTIFICATION_GENERATE_IMAGE" ) {
-      // this.templateContent = '<img src="../../gemini-native-image.png" border=0>'
-      document.write('<img src="/../../gemini-native-image.png" border=0>');
-      // this.updateDom()
+      this.templateContent = '<img src="/home/ptruiz/MagicMirror/gemini-native-image.png" border=0>'
+      this.updateDom()
     }
   },
 

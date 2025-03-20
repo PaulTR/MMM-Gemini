@@ -1,5 +1,5 @@
 const NodeHelper = require("node_helper");
-const { GoogleGenAI, Modality } = require("@google/genai"); // Import Modality
+const { GoogleGenAI, Modality } = require("@google/genai");
 const record = require('record-audio')
 
 module.exports = NodeHelper.create({
@@ -52,9 +52,9 @@ module.exports = NodeHelper.create({
   async startLiveChat() {
     try {
       this.liveSession = await this.genAI.live.connect({
-        model: 'gemini-2.0-flash-exp', // Use the correct model for live API
+        model: 'gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.TEXT], // Or Modality.AUDIO if you want audio responses
+          responseModalities: [Modality.TEXT],
         },
         callbacks: {
           onopen: () => {
@@ -92,38 +92,38 @@ module.exports = NodeHelper.create({
       return;
     }
 
-    this.recorder = record();
+    // this.recorder = record();
 
-    const recordOptions = {
-      sampleRate: 16000,
-      channels: 1,
-      compress: false,
-      threshold: 0.5,
-      recordProgram: 'rec',
-    };
+    // const recordOptions = {
+    //   sampleRate: 16000,
+    //   channels: 1,
+    //   compress: false,
+    //   threshold: 0.5,
+    //   recordProgram: 'rec',
+    // };
 
-    try {
-      this.recorder.start(recordOptions).then(() => {
-        console.log('Recording started...');
-        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
+    // try {
+    //   this.recorder.start(recordOptions).then(() => {
+    //     console.log('Recording started...');
+    //     this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
 
-        this.recorder.stream().on('data', async (chunk) => {
-          try {
-            console.log("Sending audio chunk to live session");
-            this.liveSession.send(chunk); // Send the raw audio data
+    //     this.recorder.stream().on('data', async (chunk) => {
+    //       try {
+    //         console.log("Sending audio chunk to live session");
+    //         this.liveSession.send(chunk);
 
-          } catch (error) {
-            console.error("Error sending audio to live session:", error);
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
-            this.stopLiveChat(); // Stop on error
-          }
-        });
-      });
-    } catch (error) {
-      console.error("Error starting recording:", error);
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + error.message });
-      this.stopLiveChat(); // Stop on error
-    }
+    //       } catch (error) {
+    //         console.error("Error sending audio to live session:", error);
+    //         this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
+    //         this.stopLiveChat();
+    //       }
+    //     });
+    //   });
+    // } catch (error) {
+    //   console.error("Error starting recording:", error);
+    //   this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + error.message });
+    //   this.stopLiveChat();
+    // }
   },
 
   stopRecording() {

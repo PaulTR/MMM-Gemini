@@ -11,7 +11,7 @@ module.exports = NodeHelper.create({
   initializeGenAI: function(apiKey) {
     if (!this.genAI) {
       console.log("initializing!")
-      this.genAI = new GoogleGenAI({ apiKey: apiKey, http_options: {'api_version': 'v1alpha'} });
+      this.genAI = new GoogleGenAI({ apiKey: apiKey, httpOptions: {'apiVersion': 'v1alpha'} });
     }
   },
 
@@ -92,38 +92,38 @@ module.exports = NodeHelper.create({
       return;
     }
 
-    // this.recorder = record();
+    this.recorder = record();
 
-    // const recordOptions = {
-    //   sampleRate: 16000,
-    //   channels: 1,
-    //   compress: false,
-    //   threshold: 0.5,
-    //   recordProgram: 'rec',
-    // };
+    const recordOptions = {
+      sampleRate: 16000,
+      channels: 1,
+      compress: false,
+      threshold: 0.5,
+      recordProgram: 'rec',
+    };
 
-    // try {
-    //   this.recorder.start(recordOptions).then(() => {
-    //     console.log('Recording started...');
-    //     this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
+    try {
+      this.recorder.start(recordOptions).then(() => {
+        console.log('Recording started...');
+        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
 
-    //     this.recorder.stream().on('data', async (chunk) => {
-    //       try {
-    //         console.log("Sending audio chunk to live session");
-    //         this.liveSession.send(chunk);
+        this.recorder.stream().on('data', async (chunk) => {
+          try {
+            console.log("Sending audio chunk to live session");
+            this.liveSession.send(chunk);
 
-    //       } catch (error) {
-    //         console.error("Error sending audio to live session:", error);
-    //         this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
-    //         this.stopLiveChat();
-    //       }
-    //     });
-    //   });
-    // } catch (error) {
-    //   console.error("Error starting recording:", error);
-    //   this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + error.message });
-    //   this.stopLiveChat();
-    // }
+          } catch (error) {
+            console.error("Error sending audio to live session:", error);
+            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
+            this.stopLiveChat();
+          }
+        });
+      });
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + error.message });
+      this.stopLiveChat();
+    }
   },
 
   stopRecording() {

@@ -1,6 +1,7 @@
 const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality } = require("@google/genai");
-const record = require('record-audio')
+const Record = require('record-audio') // Capitalize Record
+const record = new Record(); // instantiate it.
 
 module.exports = NodeHelper.create({
 
@@ -92,7 +93,7 @@ module.exports = NodeHelper.create({
     //   return;
     // }
 
-    this.recorder = record();
+    // this.recorder = record(); // no longer needed. this.recorder is now set below.
 
     const recordOptions = {
       sampleRate: 16000,
@@ -103,21 +104,20 @@ module.exports = NodeHelper.create({
     };
 
     try {
-      this.recorder.start(recordOptions).then(() => {
-        console.log('Recording started...');
-        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
+      this.recorder = record.start(recordOptions).stream(); // modified based on usage.
+      console.log('Recording started...');
+      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
 
-        this.recorder.stream().on('data', async (chunk) => {
-          try {
-            console.log("Sending audio chunk to live session");
-            this.liveSession.send(chunk);
+      this.recorder.on('data', async (chunk) => { // moved stream handling logic here
+        try {
+          console.log("Sending audio chunk to live session");
+          this.liveSession.send(chunk);
 
-          } catch (error) {
-            console.error("Error sending audio to live session:", error);
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
-            this.stopLiveChat();
-          }
-        });
+        } catch (error) {
+          console.error("Error sending audio to live session:", error);
+          this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
+          this.stopLiveChat();
+        }
       });
     } catch (error) {
       console.error("Error starting recording:", error);

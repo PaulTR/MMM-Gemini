@@ -1,5 +1,5 @@
 const NodeHelper = require("node_helper");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI } = require("@google/genai");
 
 //Need to install this
 //npm install --save record-audio
@@ -8,7 +8,6 @@ const record = require('record-audio')
 module.exports = NodeHelper.create({
 
   genAI: null, // Initialize genAI as null
-  //liveSession: null, // No liveSession object with new SDK
   recorder: null,
   geminiProAudio: null,
 
@@ -57,23 +56,20 @@ module.exports = NodeHelper.create({
 
   async startLiveSession(apiKey) {
     if (!this.genAI) {
-      console.error("GenAI not initialized.  Call initializeGenAI first.");
+      console.error("GenAI not initialized. Call initializeGenAI first.");
       return;
     }
 
     try {
-      //const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-pro' }); // Or another suitable model - NO LIVE SESSION
-      //this.liveSession = await model.startSession({}); // No startSession method in new SDK
-
       this.recorder = record();
 
       // Configure audio recording (adjust these settings as needed)
       const recordOptions = {
-          sampleRate: 16000, // Gemini might prefer a specific rate
-          channels: 1,      // Mono audio
-          compress: false,   // Raw audio data
-          threshold: 0.5,
-          recordProgram: 'rec', // Try 'sox' if 'rec' doesn't work.  Install these if needed.
+        sampleRate: 16000, // Gemini might prefer a specific rate
+        channels: 1,      // Mono audio
+        compress: false,   // Raw audio data
+        threshold: 0.5,
+        recordProgram: 'rec', // Try 'sox' if 'rec' doesn't work. Install these if needed.
       };
 
       this.recorder.start(recordOptions).then(() => {
@@ -81,41 +77,34 @@ module.exports = NodeHelper.create({
 
         this.recorder.stream().on('data', async (chunk) => {
           try {
-            //console.log("Sending audio chunk")
-            //const response = await this.geminiProAudio.generateContent({audio: chunk});
-            //console.log("response: " + response.text());
+            // Construct the Part array as expected by @google/genai
+            const audioPart = {
+              inlineData: {
+                mimeType: 'audio/webm', //MUST be a supported type
+                data: chunk.toString('base64')
+              },
+            };
 
-            //This is how the example shows to send audio
-            const parts = [
-              {
-                text: "Describe the following picture. ",
-              },
-              {
-                inlineData: {
-                  data: chunk.toString('base64'),
-                  mimeType: "audio/webm",
-                },
-              },
-            ];
-            
-            const result = await this.geminiProAudio.generateContent({contents: parts});
+            const textPart = { text: "Describe the audio: " }; // Or any other prompt
+
+            const result = await this.geminiProAudio.generateContent({
+              contents: [{ role: "user", parts: [textPart, audioPart] }],
+            });
+
             const response = await result.response;
 
-             if (response && response.text) {
+            if (response && response.text()) {
               this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text() });
             }
-
           } catch (error) {
             console.error("Error sending audio:", error);
             this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error processing audio: " + error.message });
             this.stopLiveSession(); // Stop on error
           }
         });
-
-
       }).catch(err => {
-          console.error('Error starting recording:', err);
-          this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + err.message });
+        console.error('Error starting recording:', err);
+        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + err.message });
       });
 
     } catch (error) {
@@ -130,11 +119,5 @@ module.exports = NodeHelper.create({
       this.recorder = null;
       console.log('Recording stopped');
     }
-
-    //if (this.liveSession) { //No live session in the new SDK
-    //  this.liveSession.close(); // Or however you properly terminate the session
-    //  this.liveSession = null;
-    //  console.log('Live session stopped');
-    //}
   }
 });

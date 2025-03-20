@@ -21,7 +21,9 @@ Module.register("MMM-Template", {
     // set timeout for next random text
     // setInterval(() => this.generateText(), 10000)
 
-    this.startChat.bind(this)()
+    setTimeout(() => {
+      this.startChat();
+    }, 2000); // 2000 milliseconds = 2 seconds
   },
 
   /**

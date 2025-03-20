@@ -21,7 +21,7 @@ Module.register("MMM-Template", {
     // set timeout for next random text
     // setInterval(() => this.generateText(), 10000)
 
-    this.startChat.bind(this)
+    this.startChat.bind(this)()
   },
 
   /**
@@ -63,8 +63,11 @@ Module.register("MMM-Template", {
   startChat() {
     this.templateContent = `start chat`
     this.updateDom()
-    this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}` })
+    // this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}` })
   }
+})
+
+
 
   // /**
   //  * This is the place to receive notifications from other modules or the system.
@@ -78,4 +81,3 @@ Module.register("MMM-Template", {
   //     this.updateDom()
   //   }
   // }
-})

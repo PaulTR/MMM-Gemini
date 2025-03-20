@@ -54,6 +54,7 @@ Module.register("MMM-Template", {
     const wrapper = document.createElement("div")
     wrapper.innerHTML = `${this.templateContent}`
 
+    console.log(wrapper)
     return wrapper
   },
 

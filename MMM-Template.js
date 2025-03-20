@@ -43,8 +43,8 @@ Module.register("MMM-Template", {
     }
     if( notification === "NOTIFICATION_GENERATE_IMAGE" ) {
       // this.templateContent = '<img src="../../gemini-native-image.png" border=0>'
-      document.write('<img src="../../gemini-native-image.png" border=0>');
-      this.updateDom()
+      document.write('<img src="/../../gemini-native-image.png" border=0>');
+      // this.updateDom()
     }
   },
 

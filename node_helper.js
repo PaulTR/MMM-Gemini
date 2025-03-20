@@ -67,8 +67,9 @@ module.exports = NodeHelper.create({
             this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + eventString });
           },
           onerror: (event) => {
-            console.error('Error occurred: %s\n', event.error);
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error from Gemini: " + event.error });
+            const eventString = JSON.stringify(event, null, 2);
+            console.error('Error occurred: %s\n', eventString);
+            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error from Gemini: " + eventString });
             this.stopLiveChat(); // Stop on error
           },
           onclose: () => {
@@ -131,8 +132,6 @@ module.exports = NodeHelper.create({
       this.stopLiveChat();
     }
   },
-
-
 
   stopRecording() {
     if (this.recording) {

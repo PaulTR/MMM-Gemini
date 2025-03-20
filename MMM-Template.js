@@ -1,6 +1,3 @@
-const path = require('path');
-const fs = require('fs');
-
 Module.register("MMM-Template", {
 
   defaults: {
@@ -45,15 +42,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if (notification === "NOTIFICATION_GENERATE_IMAGE") {
-        const imagePath = '/home/ptruiz/MagicMirror/modules/MMM-Template/image.png'; // Use the absolute path provided
-        const fileUrl = 'file://' + imagePath; // Directly use the absolute path
-
-        fs.access(imagePath, fs.constants.F_OK, (err) => {
-          console.log(`${imagePath} ${err ? 'does not exist' : 'exists'}`);
-        });
-
-        console.log("image path: ", fileUrl);
-        this.templateContent = `<img src="${fileUrl}" width="600" height="600">`;
+        this.templateContent = `<img src="/home/ptruiz/MagicMirror/modules/MMM-Template/image.png" width="600" height="600">`;
         this.updateDom();
     }
   },

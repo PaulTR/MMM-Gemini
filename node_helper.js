@@ -86,11 +86,11 @@ module.exports = NodeHelper.create({
   },
 
   async startRecording() {
-    if (!this.liveSession) {
-      console.error("Live session not initialized. Call startLiveChat first.");
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error: Live session not initialized." });
-      return;
-    }
+    // if (!this.liveSession) {
+    //   console.error("Live session not initialized. Call startLiveChat first.");
+    //   this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error: Live session not initialized." });
+    //   return;
+    // }
 
     this.recorder = record();
 

@@ -1,11 +1,10 @@
 const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality } = require("@google/genai");
-const recorder = require('node-record-lpcm16'); // Use lowercase 'recorder'
+const recorder = require('node-record-lpcm16');
 
 module.exports = NodeHelper.create({
 
   genAI: null,
-  // recorder: null,  // No longer need this here, it's handled locally
   liveSession: null,
 
   initializeGenAI: function(apiKey) {
@@ -63,9 +62,9 @@ module.exports = NodeHelper.create({
             this.startRecording();
           },
           onmessage: (event) => {
-            const eventString = JSON.stringify(event, null, 2); // Add indentation for readability
+            const eventString = JSON.stringify(event, null, 2);
             console.log('Received message from the server:\n', eventString);
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + eventString }); // Send stringified event
+            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + eventString });
           },
           onerror: (event) => {
             console.error('Error occurred: %s\n', event.error);
@@ -74,8 +73,8 @@ module.exports = NodeHelper.create({
           },
           onclose: () => {
             console.log('Connection to Gemini Live API closed.');
-            // this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Disconnected from Gemini Live API"});
-            // this.stopRecording(); // Stop recording when the connection closes -  Not needed, handled in stopLiveChat
+            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Disconnected from Gemini Live API"});
+            this.stopRecording();
           },
         },
       });
@@ -97,12 +96,11 @@ module.exports = NodeHelper.create({
     };
 
     try {
-      this.recording = recorder.record(recordOptions); // Use .record(), not .start()
+      this.recording = recorder.record(recordOptions);
 
-      this.recording.stream() // Get the audio stream
+      this.recording.stream()
         .on('data', (chunk) => {
-          // Send audio chunk to Gemini
-          if (this.liveSession) { // Important check: only send if connected
+          if (this.liveSession) { 
             try {
               console.log("Sending audio chunk to live session");
               this.liveSession.sendRealtimeInput({media: {data: chunk, mimeType: 'audio/pcm;rate=16000'}});
@@ -122,7 +120,7 @@ module.exports = NodeHelper.create({
           console.log('Recording started...');
           this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
         })
-        .on('end', () => {  // Listen for the 'end' event
+        .on('end', () => { 
             console.log('Recording ended');
         });
 
@@ -130,7 +128,7 @@ module.exports = NodeHelper.create({
     } catch (error) {
       console.error("Error starting recording:", error);
       this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + error.message });
-      this.stopLiveChat(); // Stop if recording setup fails
+      this.stopLiveChat();
     }
   },
 
@@ -138,17 +136,17 @@ module.exports = NodeHelper.create({
 
   stopRecording() {
     if (this.recording) {
-      this.recording.stop();  // Correctly stop the recording
+      this.recording.stop();
       console.log('Recording stopped.');
       this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording stopped." });
-      this.recording = null; // Clear the reference
+      this.recording = null;
     }
   },
 
 
 
   async stopLiveChat() {
-    this.stopRecording();  // Stop recording *before* closing the session
+    this.stopRecording();
 
     if (this.liveSession) {
       try {

@@ -1,92 +1,124 @@
-const NodeHelper = require("node_helper");
-const { GoogleGenAI, Modality } = require("@google/genai");
+/* MagicMirror Module: your-module-name
+ * By Michael Teeuw https://michaelteeuw.nl
+ * MIT Licensed.
+ */
 
-module.exports = NodeHelper.create({
+Module.register("your-module-name", {
+  defaults: {
+    apiKey: "", // Set this in config.js!
+    model: "gemini-2.0-flash-exp" // Or another suitable model
+  },
 
-  genAI: null,
+  requiresVersion: "2.1.0", // Required version of MagicMirror
+
   audioContext: null,
   recorder: null,
   liveSession: null,
+  intervalId: null,
+
+  start: function() {
+    Log.info("Starting module: " + this.name);
+    this.config.apiKey = this.config.apiKey || "";
+
+    // Schedule visual updates (if needed)
+    this.updateDom();
+
+    // Initialize GenAI here (it's okay in a single-file setup)
+    this.initializeGenAI(this.config.apiKey);
+  },
+
+  getDom: function() {
+    var wrapper = document.createElement("div");
+    wrapper.id = "my-module-content"; // For easier updates
+    wrapper.innerHTML = "Loading...";
+    return wrapper;
+  },
+
+  getScripts: function() {
+    return [
+      this.file("recorder.js"), // Path to recorder.js in your module folder
+    ];
+  },
+
+  getStyles: function() {
+    return [
+      this.file("your-module-name.css") // Optional CSS
+    ];
+  },
+
+  socketNotificationReceived: function(notification, payload) {
+    switch (notification) {
+      case "NOTIFICATION_GENERATE_TEXT":
+        Log.log(this.name + ": " + payload.text);
+        this.updateContent(payload.text); // Update the DOM with the text
+        break;
+    }
+  },
+
+  updateContent: function(text) {
+    var contentDiv = document.getElementById("my-module-content");
+    if (contentDiv) {
+      contentDiv.innerHTML = text;
+    }
+  },
 
   initializeGenAI: function(apiKey) {
-    if (!this.genAI) {
-      console.log("initializing GenAI!");
-      this.genAI = new GoogleGenAI({ apiKey: apiKey, httpOptions: {'apiVersion': 'v1alpha'} });
+    // You'll need to fetch and include the GenAI library in your HTML if
+    // you're doing *everything* in one file (which is not recommended).
+    // Otherwise, this should really be in node_helper.js
+
+    //Simulate node_helper for single file operation
+    this.node_helper = {
+      genAI: null,
+      initializeGenAI: (apiKey) => {
+        if (!this.node_helper.genAI) {
+          console.log("initializing!");
+          this.node_helper.genAI = new (window.google.generativeai.GoogleGenerativeAI) (apiKey);
+        }
+      },
+
+      startLiveChat: async () => {
+        try {
+          const model = this.node_helper.genAI.getGenerativeModel({ model: this.config.model });
+
+          this.liveSession = model.generateStream({
+              contents: [{ role: "user", parts: [{ text: "Hello" }] }],
+          });
+
+          this.startRecording();
+
+        } catch (error) {
+          console.error("Error starting live chat:", error);
+          this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting live chat: " + error.message });
+        }
+      },
+
+      sendMessage: async (audioData) => {
+        try {
+          // Convert audioData (Uint8Array) to base64 string
+          const base64Audio = btoa(String.fromCharCode.apply(null, audioData));
+
+          // Include the base64Audio data in the prompt
+          const prompt = "Please respond to the audio data provided. Here is the base64 representation of the audio: " + base64Audio;
+
+          const model = this.node_helper.genAI.getGenerativeModel({ model: this.config.model });
+          const result = await model.generateContent(prompt);
+
+          const response = await result.response;
+          console.log(response.text());
+          this.updateContent(response.text());
+
+        } catch (error) {
+          console.error("Error processing audio:", error);
+          this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error processing audio: " + error.message });
+        }
+      }
     }
+
+    this.node_helper.initializeGenAI(apiKey);
   },
 
-  async socketNotificationReceived(notification, payload) {
-    if (notification === "GET_RANDOM_TEXT") {
-      const amountCharacters = payload.amountCharacters || 10;
-      const randomText = Array.from({ length: amountCharacters }, () =>
-        String.fromCharCode(Math.floor(Math.random() * 26) + 97)
-      ).join("");
-      this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText });
-    }
-    if (notification === "GENERATE_TEXT") {
-      const apiKey = payload.apikey;
-      this.initializeGenAI(apiKey);
-
-      const response = await this.genAI.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: "Write a joke about a magic backpack. Keep it under 40 words",
-      });
-
-      console.log(response.text);
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text });
-    }
-
-    if( notification === "START_CHAT" ) {
-      const apiKey = payload.apikey;
-      this.initializeGenAI(apiKey);
-
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Starting chat"});
-
-      this.startLiveChat();
-    }
-
-    if (notification === "STOP_CHAT") {
-      this.stopLiveChat();
-    }
-  },
-
-  async startLiveChat() {
-    try {
-      this.liveSession = await this.genAI.live.connect({
-        model: 'gemini-2.0-flash-exp',
-        config: {
-          responseModalities: [Modality.TEXT],
-        },
-        callbacks: {
-          onopen: () => {
-            console.log('Connected to the Gemini Live API socket.');
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Connected to Gemini Live API"});
-            this.startRecording();
-          },
-          onmessage: (event) => {
-            console.log('Received message from the server: %s\n', event.data);
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + event.data }); // Send response to module
-          },
-          onerror: (event) => {
-            console.error('Error occurred: %s\n', event.error);
-            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error from Gemini: " + event.error });
-            this.stopLiveChat(); // Stop on error
-          },
-          onclose: () => {
-            console.log('Connection to Gemini Live API closed.');
-            this.stopRecording();
-          },
-        },
-      });
-
-    } catch (error) {
-      console.error("Error starting live chat:", error);
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting live chat: " + error.message });
-    }
-  },
-
-
-  async startRecording() {
+  startRecording: function() {
     try {
       // Access the microphone
       navigator.mediaDevices.getUserMedia({ audio: true, video: false })
@@ -97,8 +129,7 @@ module.exports = NodeHelper.create({
           this.recorder.record();
 
           console.log("Recording started...");
-          this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
-
+          this.updateContent("Recording...");
           // Send audio data to the live session every 500ms (adjust as needed)
           this.intervalId = setInterval(() => {
             this.recorder.exportWAV((blob) => {
@@ -110,12 +141,13 @@ module.exports = NodeHelper.create({
                   console.log("Sending audio chunk to live session");
                   // Convert ArrayBuffer to Uint8Array
                   const uint8Array = new Uint8Array(arrayBuffer);
-                  this.liveSession.send(uint8Array);
+                  //this.liveSession.send(uint8Array);
+                  this.node_helper.sendMessage(uint8Array);
 
                 } catch (error) {
                   console.error("Error sending audio to live session:", error);
                   this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
-                  this.stopLiveChat();
+                  this.stopRecording();
                 }
               };
               fileReader.readAsArrayBuffer(blob);
@@ -128,21 +160,20 @@ module.exports = NodeHelper.create({
         .catch((err) => {
           console.error("Error accessing microphone:", err);
           this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error accessing microphone: " + err.message });
-          this.stopLiveChat();
+          this.stopRecording();
         });
     } catch (error) {
       console.error("Error starting recording:", error);
       this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + error.message });
-      this.stopLiveChat();
+      this.stopRecording();
     }
   },
 
-
-  stopRecording() {
+  stopRecording: function() {
     if (this.recorder) {
       this.recorder.stop();
       console.log('Recording stopped.');
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording stopped."});
+      this.updateContent("Recording stopped.");
       clearInterval(this.intervalId); // Clear the interval
       this.recorder = null;
       if (this.audioContext) {
@@ -152,19 +183,9 @@ module.exports = NodeHelper.create({
     }
   },
 
-  async stopLiveChat() {
-    this.stopRecording();
-
-    if (this.liveSession) {
-      try {
-        await this.liveSession.close();
-        console.log("Live session closed.");
-        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Live session closed."});
-      } catch (error) {
-        console.error("Error closing live session:", error);
-        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error closing live session: " + error.message});
-      }
-      this.liveSession = null;
+  notificationReceived: function(notification, payload) {
+    if (notification === "DOM_OBJECTS_LOADED") {
+      this.node_helper.startLiveChat();
     }
   },
 });

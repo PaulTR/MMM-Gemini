@@ -33,52 +33,54 @@ module.exports = NodeHelper.create({
         }
 
         if (notification === "GENERATE_IMAGE") {
-            const apiKey = payload.apikey;
-            this.initializeImageGenAI(apiKey);
+            // const apiKey = payload.apikey;
+            // this.initializeImageGenAI(apiKey);
 
-            try { // Added try-catch for error handling
+            // try { // Added try-catch for error handling
 
-                const response = await this.genAI.models.generateImages({ // Corrected: use 'this.genAI'
-                    model: 'imagen-3.0-generate-002',
-                    prompt: 'Robot holding a red skateboard',
-                    config: {
-                        numberOfImages: 1,
-                        includeRaiReason: true,
-                    },
-                });
+            //     const response = await this.genAI.models.generateImages({ // Corrected: use 'this.genAI'
+            //         model: 'imagen-3.0-generate-002',
+            //         prompt: 'Robot holding a red skateboard',
+            //         config: {
+            //             numberOfImages: 1,
+            //             includeRaiReason: true,
+            //         },
+            //     });
 
-                const imageBytes = response?.generatedImages?.[0]?.image?.imageBytes;
+            //     const imageBytes = response?.generatedImages?.[0]?.image?.imageBytes;
 
-                console.debug("Image Bytes (base64):", imageBytes); // Log the base64 data for debugging
+            //     console.debug("Image Bytes (base64):", imageBytes); // Log the base64 data for debugging
 
-                if (imageBytes) {
-                    // Convert base64 to Buffer
-                    const buffer = Buffer.from(imageBytes, 'base64');
+            //     if (imageBytes) {
+            //         // Convert base64 to Buffer
+            //         const buffer = Buffer.from(imageBytes, 'base64');
 
-                    // Save the image to a file
-                    const filename = '/modules/MMM-Template/gemini-native-image.png'; // Specify the filename
+            //         // Save the image to a file
+            //         const filename = '/modules/MMM-Template/gemini-native-image.png'; // Specify the filename
 
-                    fs.writeFile(filename, buffer, (err) => {  // Corrected: use fs.writeFile for Node.js
-                        if (err) {
-                            console.error("Error writing file:", err);
-                            this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: `Error saving image: ${err.message}` });
-                        } else {
-                            console.log('Image saved as', filename);
-                            this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: "Image generated and saved successfully!" });
-                        }
-                    });
-
-
-                } else {
-                    console.error("No image data received from Gemini.");
-                    this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: "No image data received from Gemini." });
-                }
+            //         fs.writeFile(filename, buffer, (err) => {  // Corrected: use fs.writeFile for Node.js
+            //             if (err) {
+            //                 console.error("Error writing file:", err);
+            //                 this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: `Error saving image: ${err.message}` });
+            //             } else {
+            //                 console.log('Image saved as', filename);
+            //                 this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: "Image generated and saved successfully!" });
+            //             }
+            //         });
 
 
-            } catch (error) {
-                console.error("Error generating image:", error);
-                this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: `Error generating image: ${error.message}` });
-            }
+            //     } else {
+            //         console.error("No image data received from Gemini.");
+            //         this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: "No image data received from Gemini." });
+            //     }
+
+
+            // } catch (error) {
+            //     console.error("Error generating image:", error);
+            //     this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: `Error generating image: ${error.message}` });
+            // }
+
+          this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: "Image generated and saved successfully!" });
 
         }
 

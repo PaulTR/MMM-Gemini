@@ -1,16 +1,16 @@
 const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality } = require("@google/genai");
-const Record = require('record-audio') // Capitalize Record
 
 module.exports = NodeHelper.create({
 
   genAI: null,
+  audioContext: null,
   recorder: null,
   liveSession: null,
 
   initializeGenAI: function(apiKey) {
     if (!this.genAI) {
-      console.log("initializing!")
+      console.log("initializing GenAI!");
       this.genAI = new GoogleGenAI({ apiKey: apiKey, httpOptions: {'apiVersion': 'v1alpha'} });
     }
   },
@@ -37,7 +37,8 @@ module.exports = NodeHelper.create({
     }
 
     if( notification === "START_CHAT" ) {
-      this.initializeGenAI(payload.apikey);
+      const apiKey = payload.apikey;
+      this.initializeGenAI(apiKey);
 
       this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Starting chat"});
 
@@ -73,8 +74,7 @@ module.exports = NodeHelper.create({
           },
           onclose: () => {
             console.log('Connection to Gemini Live API closed.');
-            // this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Disconnected from Gemini Live API"});
-            // this.stopRecording(); // Stop recording when the connection closes
+            this.stopRecording();
           },
         },
       });
@@ -85,42 +85,51 @@ module.exports = NodeHelper.create({
     }
   },
 
+
   async startRecording() {
-    // if (!this.liveSession) {
-    //   console.error("Live session not initialized. Call startLiveChat first.");
-    //   this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error: Live session not initialized." });
-    //   return;
-    // }
-
-    this.record = RecordAudio();
-
-    console.log('Start of recording');
-    this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Start of recording" });
-
-    const recordOptions = {
-      sampleRate: 16000,
-      channels: 1,
-      compress: false,
-      threshold: 0.5,
-      recordProgram: 'rec',
-    };
-
     try {
-      this.recorder = record.start(recordOptions).stream(); // modified based on usage.
-      console.log('Recording started...');
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
+      // Access the microphone
+      navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .then((stream) => {
+          this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const input = this.audioContext.createMediaStreamSource(stream);
+          this.recorder = new Recorder(input, { numChannels: 1 }); // Mono audio
+          this.recorder.record();
 
-      this.recorder.on('data', async (chunk) => { // moved stream handling logic here
-        try {
-          console.log("Sending audio chunk to live session");
-          this.liveSession.send(chunk);
+          console.log("Recording started...");
+          this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording..." });
 
-        } catch (error) {
-          console.error("Error sending audio to live session:", error);
-          this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
+          // Send audio data to the live session every 500ms (adjust as needed)
+          this.intervalId = setInterval(() => {
+            this.recorder.exportWAV((blob) => {
+              // Convert blob to ArrayBuffer for sending over the socket
+              const fileReader = new FileReader();
+              fileReader.onload = () => {
+                const arrayBuffer = fileReader.result;
+                try {
+                  console.log("Sending audio chunk to live session");
+                  // Convert ArrayBuffer to Uint8Array
+                  const uint8Array = new Uint8Array(arrayBuffer);
+                  this.liveSession.send(uint8Array);
+
+                } catch (error) {
+                  console.error("Error sending audio to live session:", error);
+                  this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + error.message });
+                  this.stopLiveChat();
+                }
+              };
+              fileReader.readAsArrayBuffer(blob);
+
+              this.recorder.clear(); // Clear the buffer after sending
+            });
+          }, 500); // Adjust interval for chunk size
+
+        })
+        .catch((err) => {
+          console.error("Error accessing microphone:", err);
+          this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error accessing microphone: " + err.message });
           this.stopLiveChat();
-        }
-      });
+        });
     } catch (error) {
       console.error("Error starting recording:", error);
       this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error starting recording: " + error.message });
@@ -128,12 +137,18 @@ module.exports = NodeHelper.create({
     }
   },
 
+
   stopRecording() {
-    if (this.recorder && this.recorder.isRecording()) {
+    if (this.recorder) {
       this.recorder.stop();
       console.log('Recording stopped.');
       this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Recording stopped."});
+      clearInterval(this.intervalId); // Clear the interval
       this.recorder = null;
+      if (this.audioContext) {
+        this.audioContext.close();
+        this.audioContext = null;
+      }
     }
   },
 

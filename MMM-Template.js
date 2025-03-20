@@ -19,9 +19,9 @@ Module.register("MMM-Template", {
     this.apikey = this.config.apikey
 
     // set timeout for next random text
-    // setInterval(() => this.generateText(), 10000)
+    setInterval(() => this.generateText(), 10000)
 
-    this.startChat()
+    // this.startChat()
 
   },
 

@@ -1,6 +1,5 @@
 const NodeHelper = require("node_helper");
-const { GoogleGenAI } = require("@google/genai");
-//const { LiveStream } = require("@google-cloud/speech/src/v1/speech_client"); // REMOVE THIS LINE
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 //Need to install this
 //npm install --save record-audio
@@ -9,14 +8,16 @@ const record = require('record-audio')
 module.exports = NodeHelper.create({
 
   genAI: null, // Initialize genAI as null
-  liveSession: null,
+  //liveSession: null, // No liveSession object with new SDK
   recorder: null,
+  geminiProAudio: null,
 
   initializeGenAI: function(apiKey) {
     if (!this.genAI) {
       console.log("initializing!");
-      this.genAI = new GoogleGenAI({ apiKey: apiKey });
+      this.genAI = new GoogleGenerativeAI(apiKey);
     }
+    this.geminiProAudio = this.genAI.getGenerativeModel({ model: 'gemini-1.5-pro-audio' });
   },
 
   async socketNotificationReceived(notification, payload) {
@@ -31,13 +32,12 @@ module.exports = NodeHelper.create({
       const apiKey = payload.apikey;
       this.initializeGenAI(apiKey);
 
-      const response = await this.genAI.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: "Write a joke about a magic backpack. Keep it under 40 words",
-      });
+      const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" }); //Text model
+      const result = await model.generateContent("Write a joke about a magic backpack. Keep it under 40 words");
+      const response = await result.response;
+      console.log(response.text());
 
-      console.log(response.text);
-      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text });
+      this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text() });
     }
 
     if( notification === "START_CHAT" ) {
@@ -62,8 +62,8 @@ module.exports = NodeHelper.create({
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-pro' }); // Or another suitable model
-      this.liveSession = await model.startSession({});
+      //const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-pro' }); // Or another suitable model - NO LIVE SESSION
+      //this.liveSession = await model.startSession({}); // No startSession method in new SDK
 
       this.recorder = record();
 
@@ -82,11 +82,27 @@ module.exports = NodeHelper.create({
         this.recorder.stream().on('data', async (chunk) => {
           try {
             //console.log("Sending audio chunk")
-            const response = await this.liveSession.sendAudio(chunk);
+            //const response = await this.geminiProAudio.generateContent({audio: chunk});
             //console.log("response: " + response.text());
 
+            //This is how the example shows to send audio
+            const parts = [
+              {
+                text: "Describe the following picture. ",
+              },
+              {
+                inlineData: {
+                  data: chunk.toString('base64'),
+                  mimeType: "audio/webm",
+                },
+              },
+            ];
+            
+            const result = await this.geminiProAudio.generateContent({contents: parts});
+            const response = await result.response;
+
              if (response && response.text) {
-              this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text });
+              this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text() });
             }
 
           } catch (error) {
@@ -115,10 +131,10 @@ module.exports = NodeHelper.create({
       console.log('Recording stopped');
     }
 
-    if (this.liveSession) {
-      this.liveSession.close(); // Or however you properly terminate the session
-      this.liveSession = null;
-      console.log('Live session stopped');
-    }
+    //if (this.liveSession) { //No live session in the new SDK
+    //  this.liveSession.close(); // Or however you properly terminate the session
+    //  this.liveSession = null;
+    //  console.log('Live session stopped');
+    //}
   }
 });

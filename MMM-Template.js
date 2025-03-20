@@ -42,7 +42,7 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if (notification === "NOTIFICATION_GENERATE_IMAGE") {
-        this.templateContent = `<img src="/home/ptruiz/MagicMirror/modules/MMM-Template/image.png" width="600" height="600">`;
+        // this.templateContent = `<img src="/home/ptruiz/MagicMirror/modules/MMM-Template/image.png" width="600" height="600">`;
         this.updateDom();
     }
   },
@@ -51,10 +51,8 @@ Module.register("MMM-Template", {
    * Render the page we're on.
    */
   getDom() {
-    const wrapper = document
-    wrapper.innerHTML = `${this.templateContent}`
-
-    Log.error(wrapper)
+    const wrapper = document.createElement('<img src="/home/ptruiz/MagicMirror/modules/MMM-Template/image.png" width="600" height="600">')
+    // wrapper.innerHTML = `${this.templateContent}`
     return wrapper
   },
 

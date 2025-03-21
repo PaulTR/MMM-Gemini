@@ -44,6 +44,7 @@ module.exports = NodeHelper.create({
                         numberOfImages: 1,
                         includeRaiReason: true,
                         personGeneration: PersonGeneration.ALLOW_ADULT,
+                        seed: 200,
                     },
                 });
 

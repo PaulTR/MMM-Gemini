@@ -44,7 +44,6 @@ module.exports = NodeHelper.create({
                         numberOfImages: 1,
                         includeRaiReason: true,
                         personGeneration: PersonGeneration.ALLOW_ADULT,
-                        seed: 200,
                     },
                 });
 
@@ -149,7 +148,7 @@ module.exports = NodeHelper.create({
 
     startRecording() {
         const recordOptions = {
-            sampleRateHertz: 16000,
+            sampleRateHertz: 44100,
             channels: 1,
             threshold: 0.5,
             recordProgram: 'rec',

@@ -163,7 +163,7 @@ module.exports = NodeHelper.create({
                     if (this.liveSession) {
                         try {
                             console.log("Sending audio chunk to live session");
-                            this.liveSession.sendRealtimeInput({media: {data: chunk, mimeType: 'audio/pcm;rate=16000'}});
+                            this.liveSession.sendRealtimeInput({media: {data: chunk, mimeType: 'audio/pcm;rate=44100'}});
                         } catch (sendError) {
                             console.error("Error sending audio to live session:", sendError);
                             this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Error sending audio: " + sendError.message });

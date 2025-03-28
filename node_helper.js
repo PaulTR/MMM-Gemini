@@ -3,12 +3,13 @@ const { GoogleGenAI, Modality, PersonGeneration, SafetyFilterLevel, LiveServerMe
 const recorder = require('node-record-lpcm16');
 const fs = require('fs'); // Import the 'fs' module
 
+const responseQueue = []
+
 module.exports = NodeHelper.create({
 
     genAI: null,
     liveSession: null,
     recording: null, // Add state for the recording process
-    const responseQueue = []
 
     initializeGenAI: function(apiKey) {
         // Simplified initialization - assume it works or throws

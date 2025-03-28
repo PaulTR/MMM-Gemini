@@ -108,6 +108,50 @@ module.exports = NodeHelper.create({
         }
     },
 
+/**
+ * Asynchronously waits for and retrieves the next message from the responseQueue.
+ * If the queue is empty, it waits for a short interval (e.g., 100ms)
+ * before checking again, preventing busy-waiting.
+ *
+ * Assumes 'responseQueue' is an array accessible in this scope.
+ * If 'responseQueue' is part of the NodeHelper instance, use 'this.responseQueue'.
+ */
+async waitMessage() {
+    let message = undefined;
+    let attempts = 0; // Optional: Prevent infinite loops
+    const maxAttempts = 300; // Optional: e.g., 30 seconds timeout if interval is 100ms
+
+    // Loop until a message is retrieved or max attempts are reached
+    while (message === undefined && attempts < maxAttempts) {
+        // Attempt to get the first message from the queue
+        // If responseQueue is on the helper instance: use this.responseQueue.shift();
+        message = responseQueue.shift();
+
+        if (message) {
+            // Optional: Log the received message if debugging
+            // console.log("waitMessage: Dequeued message:", JSON.stringify(message));
+            return message; // Message found, return it
+        } else {
+            // Queue is empty, wait asynchronously for a short period
+            // console.log("waitMessage: Queue empty, waiting..."); // Optional debug log
+            await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+            attempts++;
+        }
+    }
+
+    // Optional: Handle timeout case
+    if (message === undefined) {
+        console.warn("waitMessage: Timed out waiting for a message from the queue.");
+        // Decide what to return on timeout: undefined, null, or throw an error
+        return undefined;
+    }
+
+    // This line should technically not be reached if the loop logic is correct,
+    // but included for completeness. The loop should return the message when found.
+    return message;
+},
+
+
     /**
      * Assuming 'waitMessage' is an async function available in this scope
      * (e.g., defined elsewhere or as another method like 'this.waitMessage()').
@@ -135,7 +179,7 @@ module.exports = NodeHelper.create({
             // the condition might need to be different, e.g., checking 'message.response.done'
             // or similar flags based on the API/SDK documentation.
         }
-        return turn;
+        return turn
     }
 
     /**

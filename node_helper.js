@@ -1,9 +1,9 @@
 const NodeHelper = require("node_helper");
-const { GoogleGenAI, Modality, PersonGeneration, SafetyFilterLevel } = require("@google/genai");
+const { GoogleGenAI, Modality, PersonGeneration, SafetyFilterLevel, LiveServerMessage } = require("@google/genai");
 const recorder = require('node-record-lpcm16');
 const fs = require('fs'); // Import the 'fs' module
 
-const responseQueue = [];
+const responseQueue: LiveServerMessage[] = [];
 
 module.exports = NodeHelper.create({
 
@@ -109,7 +109,7 @@ module.exports = NodeHelper.create({
         }
     },
 
-    async function waitMessage(): Promise<LiveServerMessage> {
+    async waitMessage(): Promise<LiveServerMessage> {
         let done = false;
         let message: LiveServerMessage | undefined = undefined;
         while (!done) {
@@ -124,7 +124,7 @@ module.exports = NodeHelper.create({
         return message!;
       }
 
-      async function handleTurn(): Promise<LiveServerMessage[]> {
+      async handleTurn(): Promise<LiveServerMessage[]> {
         const turn: LiveServerMessage[] = [];
         let done = false;
         while (!done) {

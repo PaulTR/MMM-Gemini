@@ -43,7 +43,7 @@ module.exports = NodeHelper.create({
             }
 
             else if (notification === "GENERATE_IMAGE") {
-                if (!apiKey) return this.sendSocketNotification("NOTIFICATION_ERROR", { text: "API Key required for image generation." });
+                if (!apiKey) return this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "API Key required for image generation." });
                 this.initializeImageGenAI(apiKey); // Use the specific initializer if needed
 
                 const response = await this.genAI.models.generateImages({ /* ... existing config ... */ });
@@ -62,7 +62,7 @@ module.exports = NodeHelper.create({
                     fs.writeFile(filename, buffer, (err) => {
                         if (err) {
                             console.error("NodeHelper: Error writing image file:", err);
-                            this.sendSocketNotification("NOTIFICATION_ERROR", { text: `Error saving image: ${err.message}` });
+                            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: `Error saving image: ${err.message}` });
                         } else {
                             console.log('NodeHelper: Image saved as', filename);
                             // Send relative path or identifier usable by the module
@@ -85,7 +85,7 @@ module.exports = NodeHelper.create({
             }
 
             else if (notification === "START_CHAT") {
-                if (!apiKey) return this.sendSocketNotification("NOTIFICATION_ERROR", { text: "API Key required to start chat." });
+                if (!apiKey) return this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "API Key required to start chat." });
                 this.initializeGenAI(apiKey); // Ensure initialized before starting
                 this.startLiveChat(); // Call the updated function
             }
@@ -97,7 +97,7 @@ module.exports = NodeHelper.create({
         } catch (error) {
             // General error handling for async operations in socketNotificationReceived
             console.error(`NodeHelper: Error processing notification ${notification}:`, error);
-            this.sendSocketNotification("NOTIFICATION_ERROR", { text: `Error processing ${notification}: ${error.message}` });
+            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: `Error processing ${notification}: ${error.message}` });
             // Specific cleanup if needed, e.g., stop chat on error during generation
             if (notification === "START_CHAT" || notification === "GENERATE_TEXT" || notification === "GENERATE_IMAGE") {
                 // Potentially stop chat if an error occurred during related ops

@@ -124,7 +124,7 @@ module.exports = NodeHelper.create({
         try {
             // --- Establish the persistent connection ---
             this.liveSession = await this.genAI.live.connect({
-                model: 'gemini-2.0-flash-exp', // Use appropriate model
+                model: 'gemini-2.0-flash', // Use appropriate model
                 config: {
                     responseModalities: [Modality.TEXT],
                     // inputModalities: [Modality.AUDIO], // Often inferred, but can be specified

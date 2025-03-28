@@ -8,13 +8,15 @@ module.exports = NodeHelper.create({
     genAI: null,
     liveSession: null,
     recording: null, // Add state for the recording process
+    const responseQueue: LiveServerMessage[] = [];
+
 
     initializeGenAI: function(apiKey) {
         // Simplified initialization - assume it works or throws
         if (!this.genAI || /* potentially add check if API key changed */ false) {
              console.log("NodeHelper: Initializing GoogleGenAI for chat/text...");
              // Ensure correct version/options if needed for live
-             this.genAI = new GoogleGenAI({ apiKey: apiKey /* Add other necessary options */ });
+             this.genAI = new GoogleGenAI({ apiKey: apiKey, httpOptions: { apiVersion: 'v1alpha' }, vertexai: false });
         }
     },
 
@@ -106,6 +108,34 @@ module.exports = NodeHelper.create({
         }
     },
 
+    async function waitMessage(): Promise<LiveServerMessage> {
+        let done = false;
+        let message: LiveServerMessage | undefined = undefined;
+        while (!done) {
+          message = responseQueue.shift();
+          if (message) {
+            console.debug('Received: %s\n', JSON.stringify(message, null, 4));
+            done = true;
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+        }
+        return message!;
+      }
+
+      async function handleTurn(): Promise<LiveServerMessage[]> {
+        const turn: LiveServerMessage[] = [];
+        let done = false;
+        while (!done) {
+          const message = await waitMessage();
+          turn.push(message);
+          if (message.serverContent && message.serverContent.turnComplete) {
+            done = true;
+          }
+        }
+        return turn;
+      }
+
     /**
      * Starts the live chat session.
      * Establishes a persistent connection to the Gemini Live API.
@@ -124,10 +154,10 @@ module.exports = NodeHelper.create({
         try {
             // --- Establish the persistent connection ---
             this.liveSession = await this.genAI.live.connect({
-                model: 'gemini-2.0-flash', // Use appropriate model
+                model: 'gemini-2.0-flash-exp', // Use appropriate model
                 config: {
                     responseModalities: [Modality.TEXT],
-                    // inputModalities: [Modality.AUDIO], // Often inferred, but can be specified
+                    inputModalities: [Modality.AUDIO], // Often inferred, but can be specified
                 },
                 // --- Callbacks handle events on the open socket ---
                 callbacks: {
@@ -137,10 +167,11 @@ module.exports = NodeHelper.create({
                         // Connection is open, now start sending audio
                         this.startRecording();
                     },
-                    onmessage: (event) => {
+                    onmessage: (event: LiveServerMessage) => {
                         // Process incoming messages from the persistent connection
                         if (event.response?.text) {
                             const textResponse = event.response.text;
+                            responseQueue.push(textResponse);
                             console.log('NodeHelper: Received text from server:', textResponse);
                             this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "Gemini: " + textResponse });
                         } else {

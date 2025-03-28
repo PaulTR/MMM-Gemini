@@ -46,7 +46,16 @@ module.exports = NodeHelper.create({
                 if (!apiKey) return this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: "API Key required for image generation." });
                 this.initializeImageGenAI(apiKey); // Use the specific initializer if needed
 
-                const response = await this.genAI.models.generateImages({ /* ... existing config ... */ });
+                const response = await this.genAI.models.generateImages({ // Corrected: use 'this.genAI'
+                    model: 'imagen-3.0-generate-002',
+                    prompt: 'a magical fantasy castle',
+                    config: {
+                        numberOfImages: 1,
+                        includeRaiReason: true,
+                        personGeneration: PersonGeneration.ALLOW_ADULT,
+                        safetyFilterLevel: SafetyFilterLevel.BLOCK_ONLY_HIGH,
+                    },
+                });
                 
                 console.error("Response:", response);
                 console.error("Generated Images:", response?.generatedImages);

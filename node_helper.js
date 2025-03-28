@@ -3,7 +3,7 @@ const { GoogleGenAI, Modality, PersonGeneration, SafetyFilterLevel } = require("
 const recorder = require('node-record-lpcm16');
 const fs = require('fs'); // Import the 'fs' module
 
-const responseQueue: LiveServerMessage[] = [];
+const responseQueue = [];
 
 module.exports = NodeHelper.create({
 
@@ -229,7 +229,7 @@ module.exports = NodeHelper.create({
         }
 
         const recordOptions = {
-            sampleRateHertz: 44100, // Ensure this matches model requirements if specified
+            sampleRateHertz: 16000, // Ensure this matches model requirements if specified
             channels: 1,
             threshold: 0.5,        // Silence threshold (adjust as needed)
             recordProgram: 'rec',  // or 'sox', 'arecord' - ensure it's installed

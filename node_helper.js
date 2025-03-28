@@ -3,7 +3,7 @@ const { GoogleGenAI, Modality, PersonGeneration, SafetyFilterLevel, LiveServerMe
 const recorder = require('node-record-lpcm16');
 const fs = require('fs'); // Import the 'fs' module
 
-const responseQueue: LiveServerMessage[] = [];
+const responseQueue = [];
 
 module.exports = NodeHelper.create({
 

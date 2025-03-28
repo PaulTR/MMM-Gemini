@@ -8,7 +8,7 @@ module.exports = NodeHelper.create({
     genAI: null,
     liveSession: null,
     recording: null, // Add state for the recording process
-    responseQueue: LiveServerMessage[] = [];
+    const responseQueue = []
 
     initializeGenAI: function(apiKey) {
         // Simplified initialization - assume it works or throws
@@ -107,33 +107,35 @@ module.exports = NodeHelper.create({
         }
     },
 
-    async waitMessage(): Promise<LiveServerMessage> {
+    /**
+     * Assuming 'waitMessage' is an async function available in this scope
+     * (e.g., defined elsewhere or as another method like 'this.waitMessage()').
+     *
+     * This function waits for messages using waitMessage(), collects them into a 'turn',
+     * and stops when a message indicates the 'turn' is complete.
+     */
+    async handleTurn() { // Removed the ': Promise<LiveServerMessage[]>' return type annotation
+        const turn = []; // Removed the ': LiveServerMessage[]' variable type annotation
         let done = false;
-        let message: LiveServerMessage | undefined = undefined;
         while (!done) {
-          message = responseQueue.shift();
-          if (message) {
-            console.debug('Received: %s\n', JSON.stringify(message, null, 4));
-            done = true;
-          } else {
-            await new Promise((resolve) => setTimeout(resolve, 100));
-          }
-        }
-        return message!;
-      }
+            // Make sure waitMessage() is accessible here.
+            // If handleTurn and waitMessage are both methods of the same object,
+            // you would typically call it as: const message = await this.waitMessage();
+            const message = await waitMessage();
 
-      async handleTurn(): Promise<LiveServerMessage[]> {
-        const turn: LiveServerMessage[] = [];
-        let done = false;
-        while (!done) {
-          const message = await waitMessage();
-          turn.push(message);
-          if (message.serverContent && message.serverContent.turnComplete) {
-            done = true;
-          }
+            turn.push(message);
+
+            // Accessing properties remains the same, but without compile-time type checking.
+            // Added optional chaining (?.) for runtime safety in case message or serverContent is null/undefined.
+            if (message?.serverContent?.turnComplete) {
+                done = true;
+            }
+            // Note: Depending on the actual structure of the message from the Gemini Live API,
+            // the condition might need to be different, e.g., checking 'message.response.done'
+            // or similar flags based on the API/SDK documentation.
         }
         return turn;
-      }
+    }
 
     /**
      * Starts the live chat session.

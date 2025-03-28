@@ -47,7 +47,14 @@ module.exports = NodeHelper.create({
                 this.initializeImageGenAI(apiKey); // Use the specific initializer if needed
 
                 const response = await this.genAI.models.generateImages({ /* ... existing config ... */ });
+                
+                console.debug("Response:", response);
+                console.debug("Generated Images:", response?.generatedImages);
+                console.debug("First Image:", response?.generatedImages?.[0]);
+                console.debug("Image Object:", response?.generatedImages?.[0]?.image);
+                console.debug("Image Bytes (before)", response?.generatedImages?.[0]?.image?.imageBytes);
                 const imageBytes = response?.generatedImages?.[0]?.image?.imageBytes;
+                console.debug("Image Bytes (after):", imageBytes);
 
                 if (imageBytes) {
                     const buffer = Buffer.from(imageBytes, 'base64');

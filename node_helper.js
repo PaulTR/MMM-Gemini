@@ -290,6 +290,7 @@ module.exports = NodeHelper.create({
                                             part.inlineData.mimeType === `audio/pcm;rate=${SAMPLE_RATE}` &&
                                             part.inlineData.data)
                                         {
+                                            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", {text: part.inlineData.data})
                                             // console.log("NodeHelper: Queuing audio chunk."); // Less verbose log
                                             this.queueAudioChunk(part.inlineData.data);
                                         } else if (part.text) {

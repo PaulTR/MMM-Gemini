@@ -37,6 +37,10 @@ Module.register("MMM-Template", {
       this.templateContent = `${this.config.apikey} ${payload.text}`
       this.updateDom()
     }
+    if (notification === "CHAT_ERROR") {
+      this.templateContent = `${this.config.apikey} ${payload.text}`
+      this.updateDom()
+    }
     if( notification === "NOTIFICATION_GENERATE_TEXT" ) {
       this.templateContent = `${payload.text}`
       this.updateDom()

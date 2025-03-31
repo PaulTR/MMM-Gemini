@@ -73,7 +73,7 @@ module.exports = NodeHelper.create({
             initializeLiveGenAPI(apiKey)
             const inputText = payload.text
             console.log('NodeHelper: Send text: ' + inputText)
-            await this.liveSession.sendClientContent({ turns: 'tell me a story about a magic mirror', turnComplete: true })
+            this.liveSession.sendClientContent({ turns: 'tell me a story about a magic mirror', turnComplete: true })
         }
 
         if (notification === "GET_RANDOM_TEXT") {

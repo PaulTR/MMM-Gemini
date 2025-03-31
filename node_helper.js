@@ -253,6 +253,7 @@ module.exports = NodeHelper.create({
                                 console.log('NodeHelper: Live Connection OPENED.');
                                 this.sendSocketNotification("CHAT_STARTED", {});
                                 // Send the initial message
+                                await sleep(2000);
                                 try {
                                     if (this.liveSession) { // Check if session still exists
                                         console.log("NodeHelper: Sending initial text:", inputText);

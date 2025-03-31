@@ -23,54 +23,57 @@ module.exports = NodeHelper.create({
         }
     },
 
+    initializeLiveGenAPI: function(apiKey) {
+        if( !this.liveSession ) {
+            this.initializeGenAI(apiKey);
+
+            this.liveSession = await this.genAI.live.connect({
+                model: 'gemini-2.0-flash-exp', // Or your preferred model supporting Live API
+                callbacks: {
+                    // Use arrow functions to maintain 'this' context
+                    onopen: () => {
+                        console.log('NodeHelper: Live Connection OPENED.');
+                    },
+                    onmessage: (message) => {
+                        console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
+                        // const parts = message?.serverContent?.modelTurn?.parts;
+                        // if (parts && Array.isArray(parts)) {
+                        //     for (const part of parts) {
+                        //         if (part.inlineData &&
+                        //             part.inlineData.mimeType === `audio/pcm;rate=${SAMPLE_RATE}` &&
+                        //             part.inlineData.data)
+                        //         {
+                        //             console.log("NodeHelper: Queuing audio chunk."); // Less verbose log
+                        //             // this.queueAudioChunk(part.inlineData.data);
+                        //         } else if (part.text) {
+                        //             // Optional: Send text back to module if needed for display
+                        //             // console.log("NodeHelper: Received text part:", part.text);
+                        //             this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: part.text });
+                        //         }
+                        //     }
+                        // }
+                    },
+                    onerror: (e) => {
+                        console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object
+                        console.error('NodeHelper: Live Connection ERROR Message:', e?.message || 'No message');
+                    },
+                    onclose: (e) => {
+                        console.error('NodeHelper: Live Connection CLOSED Object:', e); // Log the whole object
+                    },
+                },
+                config: { responseModalities: [Modality.TEXT] },
+            });
+        }
+    }
+
     async socketNotificationReceived(notification, payload) {
 
         if( notification === "SEND_TEXT") {
-            if( !this.liveSession ) {
-                const apiKey = payload.apikey;
-                this.initializeGenAI(apiKey);
-
-                this.liveSession = await this.genAI.live.connect({
-                    model: 'gemini-2.0-flash-exp', // Or your preferred model supporting Live API
-                    callbacks: {
-                        // Use arrow functions to maintain 'this' context
-                        onopen: () => {
-                            console.log('NodeHelper: Live Connection OPENED.');
-                        },
-                        onmessage: (message) => {
-                            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: JSON.stringify(message) });
-                            console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
-                            const parts = message?.serverContent?.modelTurn?.parts;
-                            if (parts && Array.isArray(parts)) {
-                                for (const part of parts) {
-                                    if (part.inlineData &&
-                                        part.inlineData.mimeType === `audio/pcm;rate=${SAMPLE_RATE}` &&
-                                        part.inlineData.data)
-                                    {
-                                        console.log("NodeHelper: Queuing audio chunk."); // Less verbose log
-                                        // this.queueAudioChunk(part.inlineData.data);
-                                    } else if (part.text) {
-                                        // Optional: Send text back to module if needed for display
-                                        // console.log("NodeHelper: Received text part:", part.text);
-                                        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: part.text });
-                                    }
-                                }
-                            }
-                        },
-                        onerror: (e) => {
-                            console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object
-                            console.error('NodeHelper: Live Connection ERROR Message:', e?.message || 'No message');
-                        },
-                        onclose: (e) => {
-                            
-                        },
-                    },
-                    config: { responseModalities: [Modality.TEXT] }, // Request only audio
-                });
-            }
+            const apiKey = payload.apikey
+            initializeLiveGenAPI(apiKey)
             const inputText = payload.text
             console.log('NodeHelper: Send text: ' + inputText)
-            await this.liveSession.sendClientContent({ turns: inputText, turnComplete: true })
+            await this.liveSession.sendClientContent({ turns: 'tell me a story about a magic mirror', turnComplete: true })
         }
 
         if (notification === "GET_RANDOM_TEXT") {

@@ -68,8 +68,9 @@ module.exports = NodeHelper.create({
                     config: { responseModalities: [Modality.TEXT] }, // Request only audio
                 });
             }
-            const inputText = payload?.text;
-            this.liveSession.sendClientContent({ turns: inputText });
+            const inputText = payload.text
+            console.log('NodeHelper: Send text: ' + inputText)
+            this.liveSession.sendClientContent({ turns: inputText })
         }
 
         if (notification === "GET_RANDOM_TEXT") {

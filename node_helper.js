@@ -70,7 +70,7 @@ module.exports = NodeHelper.create({
             }
             const inputText = payload.text
             console.log('NodeHelper: Send text: ' + inputText)
-            this.liveSession.sendClientContent({ turns: inputText })
+            await this.liveSession.sendClientContent({ turns: inputText, turnComplete: true })
         }
 
         if (notification === "GET_RANDOM_TEXT") {

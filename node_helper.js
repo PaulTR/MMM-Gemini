@@ -12,7 +12,7 @@ module.exports = NodeHelper.create({
     initializeGenAI: function(apiKey) {
         if (!this.genAI) {
             console.log("initializing!");
-            this.genAI = new GoogleGenAI({ apiKey: apiKey, httpOptions: { 'apiVersion': 'v1alpha' } });
+            this.genAI = new GoogleGenAI({ apiKey: apiKey, vertexai: false, httpOptions: { 'apiVersion': 'v1alpha' } });
         }
     },
 
@@ -70,7 +70,7 @@ module.exports = NodeHelper.create({
 
         if( notification === "SEND_TEXT") {
             const apiKey = payload.apikey
-            initializeLiveGenAPI(apiKey)
+            await initializeLiveGenAPI(apiKey)
             const inputText = payload.text
             console.log('NodeHelper: Send text: ' + inputText)
             await this.liveSession.sendClientContent({ turns: 'tell me a story about a magic mirror', turnComplete: true })

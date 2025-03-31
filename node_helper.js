@@ -27,7 +27,7 @@ module.exports = NodeHelper.create({
         if( !this.liveSession ) {
             this.initializeGenAI(apiKey);
 
-            this.liveSession = await this.genAI.live.connect({
+            this.liveSession = this.genAI.live.connect({
                 model: 'gemini-2.0-flash-exp', // Or your preferred model supporting Live API
                 callbacks: {
                     // Use arrow functions to maintain 'this' context
@@ -36,22 +36,6 @@ module.exports = NodeHelper.create({
                     },
                     onmessage: (message) => {
                         console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
-                        // const parts = message?.serverContent?.modelTurn?.parts;
-                        // if (parts && Array.isArray(parts)) {
-                        //     for (const part of parts) {
-                        //         if (part.inlineData &&
-                        //             part.inlineData.mimeType === `audio/pcm;rate=${SAMPLE_RATE}` &&
-                        //             part.inlineData.data)
-                        //         {
-                        //             console.log("NodeHelper: Queuing audio chunk."); // Less verbose log
-                        //             // this.queueAudioChunk(part.inlineData.data);
-                        //         } else if (part.text) {
-                        //             // Optional: Send text back to module if needed for display
-                        //             // console.log("NodeHelper: Received text part:", part.text);
-                        //             this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: part.text });
-                        //         }
-                        //     }
-                        // }
                     },
                     onerror: (e) => {
                         console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object

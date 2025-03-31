@@ -214,8 +214,8 @@ module.exports = NodeHelper.create({
         }
 
         try {
+            const inputText = payload?.text;
             if (notification === "SEND_TEXT") {
-                const inputText = payload?.text;
                 try {
                     if (this.liveSession) { // Check if session still exists
                         console.log("NodeHelper: Sending initial text:", inputText);
@@ -282,6 +282,7 @@ module.exports = NodeHelper.create({
                                 }
                             },
                             onmessage: (message) => {
+                                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: JSON.stringify(message) });
                                 // console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
                                 const parts = message?.serverContent?.modelTurn?.parts;
                                 if (parts && Array.isArray(parts)) {
@@ -290,7 +291,6 @@ module.exports = NodeHelper.create({
                                             part.inlineData.mimeType === `audio/pcm;rate=${SAMPLE_RATE}` &&
                                             part.inlineData.data)
                                         {
-                                            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", {text: part.inlineData.data})
                                             // console.log("NodeHelper: Queuing audio chunk."); // Less verbose log
                                             this.queueAudioChunk(part.inlineData.data);
                                         } else if (part.text) {

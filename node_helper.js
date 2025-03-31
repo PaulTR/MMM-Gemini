@@ -304,15 +304,18 @@ module.exports = NodeHelper.create({
                                  }
                             },
                             onerror: (e) => {
-                                console.error('NodeHelper: Live Connection ERROR:', e?.message || e);
+                                console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object
+                                console.error('NodeHelper: Live Connection ERROR Message:', e?.message || 'No message');
                                 this.sendSocketNotification("CHAT_ERROR", { message: `Connection Error: ${e?.message || 'Unknown error'}` });
-                                this.stopLiveChat("connection_error"); // Cleanup on error
+                                this.stopLiveChat("connection_error");
                             },
                             onclose: (e) => {
-                                // Check if it was closed intentionally by us (liveSession is null)
-                                if (this.liveSession) {
-                                     console.log('NodeHelper: Live Connection CLOSED by server:', e?.reason || 'No reason provided');
-                                     this.sendSocketNotification("CHAT_CLOSED", { reason: `Closed by server: ${e?.reason || 'Unknown'}` });
+                                // Check if it was closed intentionally by us (liveSession is null after stopLiveChat)
+                                if (this.liveSession) { // Check *before* calling stopLiveChat
+                                     console.log('NodeHelper: Live Connection CLOSED by server. Event Object:', e); // Log object
+                                     const reason = e?.reason || 'No reason provided';
+                                     console.log('NodeHelper: Live Connection CLOSED by server. Reason:', reason);
+                                     this.sendSocketNotification("CHAT_CLOSED", { reason: `Closed by server: ${reason}` });
                                      this.stopLiveChat("closed_by_server"); // Cleanup
                                 } else {
                                      console.log('NodeHelper: Live Connection closed (likely initiated by helper).');

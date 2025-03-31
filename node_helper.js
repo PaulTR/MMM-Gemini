@@ -54,7 +54,7 @@ module.exports = NodeHelper.create({
 
         if( notification === "SEND_TEXT") {
             const apiKey = payload.apikey
-            initializeLiveGenAPI(apiKey)
+            this.initializeLiveGenAPI(apiKey)
             const inputText = payload.text
             console.log('NodeHelper: Send text: ' + inputText)
             this.liveSession.sendClientContent({ turns: 'tell me a story about a magic mirror', turnComplete: true })

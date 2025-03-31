@@ -23,6 +23,8 @@ Module.register("MMM-Template", {
 
     this.startChat()
 
+    setInterval(() => this.sendText(), 10000)
+
   },
 
   /**
@@ -72,6 +74,10 @@ Module.register("MMM-Template", {
 
   startChat: async function() {
     this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}` })
+  }
+
+  sendText() {
+    this.sendSocketNotification("SEND_TEXT", { text: `Tell me a joke about a magic mirror`})
   }
 })
 

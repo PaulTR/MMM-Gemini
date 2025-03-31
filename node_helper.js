@@ -40,7 +40,21 @@ module.exports = NodeHelper.create({
                                 this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: JSON.stringify(message) });
                                 console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
                                 const parts = message?.serverContent?.modelTurn?.parts;
-                                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: part.text });
+                                if (parts && Array.isArray(parts)) {
+                                    for (const part of parts) {
+                                        if (part.inlineData &&
+                                            part.inlineData.mimeType === `audio/pcm;rate=${SAMPLE_RATE}` &&
+                                            part.inlineData.data)
+                                        {
+                                            console.log("NodeHelper: Queuing audio chunk."); // Less verbose log
+                                            // this.queueAudioChunk(part.inlineData.data);
+                                        } else if (part.text) {
+                                            // Optional: Send text back to module if needed for display
+                                            // console.log("NodeHelper: Received text part:", part.text);
+                                            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: part.text });
+                                        }
+                                    }
+                                }
                             },
                             onerror: (e) => {
                                 console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object

@@ -24,17 +24,6 @@ Module.register("MMM-Template", { // <-- Renamed Module
   isSessionActive: false, // Still track session state, even if interval doesn't check it
   testIntervalId: null, // To store the interval timer ID
 
-  this.testIntervalId = setInterval(() => {
-        // --- MODIFICATION: Removed the check for this.isSessionActive ---
-        // Always send the test message for testing purposes.
-        Log.info(`${this.name}: Interval fired. Sending test message: "${this.config.testMessage}" (Session active: ${this.isSessionActive})`);
-        this.status = `Sending test: "${this.config.testMessage}"`; // Update status
-        this.updateDom();
-        // Send the actual notification to the node_helper
-        this.sendSocketNotification("SEND_TEXT", this.config.testMessage);
-
-      }, this.config.sendTestMessageInterval);
-  
   // Define start sequence.
   start: function() {
     // Use this.name which will now be "MMM-Template"
@@ -65,6 +54,16 @@ Module.register("MMM-Template", { // <-- Renamed Module
     this.updateDom();
     this.sendSocketNotification("START_CHAT", this.config.initialPrompt);
 
+    this.testIntervalId = setInterval(() => {
+        // --- MODIFICATION: Removed the check for this.isSessionActive ---
+        // Always send the test message for testing purposes.
+        // Log.info(`${this.name}: Interval fired. Sending test message: "${this.config.testMessage}" (Session active: ${this.isSessionActive})`);
+        this.status = `Sending test: "${this.config.testMessage}"`; // Update status
+        this.updateDom();
+        // Send the actual notification to the node_helper
+        this.sendSocketNotification("SEND_TEXT", this.config.testMessage);
+
+      }, this.config.sendTestMessageInterval);
   },
 
   // Override dom generator.

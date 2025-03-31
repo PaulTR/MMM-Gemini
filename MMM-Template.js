@@ -68,7 +68,7 @@ Module.register("MMM-Template", {
   },
 
   sendText: async function() {
-    this.sendSocketNotification("SEND_TEXT", { text: `Tell me a joke about a magic mirror`})
+    this.sendSocketNotification("SEND_TEXT", { apikey: `${this.config.apikey}`, text: `Tell me a joke about a magic mirror`})
   }
 })
 

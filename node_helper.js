@@ -27,7 +27,7 @@ module.exports = NodeHelper.create({
         if( !this.liveSession ) {
             this.initializeGenAI(apiKey);
 
-            this.liveSession = this.genAI.live.connect({
+            this.liveSession = await this.genAI.live.connect({
                 model: 'gemini-2.0-flash-exp', // Or your preferred model supporting Live API
                 callbacks: {
                     // Use arrow functions to maintain 'this' context
@@ -48,7 +48,7 @@ module.exports = NodeHelper.create({
                 config: { responseModalities: [Modality.TEXT] },
             });
         }
-    }
+    },
 
     async socketNotificationReceived(notification, payload) {
 

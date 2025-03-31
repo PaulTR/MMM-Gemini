@@ -3,7 +3,7 @@ Module.register("MMM-Template", {
   defaults: {
     exampleContent: ""
   },
-  
+
   /**
    * Pseudo-constructor for our module. Initialize stuff here.
    */
@@ -69,9 +69,9 @@ Module.register("MMM-Template", {
     this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}` })
   },
 
-  // sendText() async function() {
-  //   this.sendSocketNotification("SEND_TEXT", { text: `Tell me a joke about a magic mirror`})
-  // }
+  sendText(): async function() {
+    this.sendSocketNotification("SEND_TEXT", { text: `Tell me a joke about a magic mirror`})
+  }
 })
 
 

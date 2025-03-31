@@ -215,6 +215,7 @@ module.exports = NodeHelper.create({
 
         try {
             if (notification === "SEND_TEXT") {
+                const inputText = payload?.text;
                 try {
                     if (this.liveSession) { // Check if session still exists
                         console.log("NodeHelper: Sending initial text:", inputText);

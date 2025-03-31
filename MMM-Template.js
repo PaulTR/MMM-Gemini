@@ -1,13 +1,13 @@
 /* Magic Mirror
- * Module: MMM-GeminiChat
+ * Module: MMM-GeminiChat  // <-- Renamed for consistency
  *
  * By Your Name
  * MIT Licensed.
  */
-Module.register("MMM-Template", {
+Module.register("MMM-GeminiChat", { // <-- Renamed for consistency
   // Default module config.
   defaults: {
-    apikey: null, // IMPORTANT: Set this in config.js
+    apiKey: null, // IMPORTANT: Set this in config.js
     audioSampleRate: 24000,
     audioChannels: 1,
     audioBitDepth: 16,
@@ -31,7 +31,8 @@ Module.register("MMM-Template", {
     this.isSessionActive = false;
     this.testIntervalId = null; // Ensure interval ID is null initially
 
-    if (!this.config.apikey) {
+    if (!this.config.apiKey) {
+      // Ensure the module name in the log matches the registered name
       Log.error(this.name + ": apiKey is not set in config.js!");
       this.status = "Error: API Key missing";
       this.updateDom();
@@ -42,7 +43,7 @@ Module.register("MMM-Template", {
     this.sendSocketNotification("SET_CONFIG", this.config);
     Log.info(this.name + ": Configuration sent to helper.");
 
-    // --- MODIFICATION: Automatically start chat session ---
+    // --- Automatically start chat session ---
     Log.info(this.name + ": Automatically starting chat session.");
     this.status = "Auto-starting chat...";
     this.updateDom();
@@ -55,7 +56,7 @@ Module.register("MMM-Template", {
   // Override dom generator.
   getDom: function() {
     const wrapper = document.createElement("div");
-    wrapper.className = "gemini-chat-status";
+    wrapper.className = "gemini-chat-status"; // Matches CSS file name convention
 
     if (this.config.displayStatus) {
       wrapper.innerHTML = `<strong>${this.name}:</strong> ${this.status}`;
@@ -67,6 +68,7 @@ Module.register("MMM-Template", {
 
   // Define required styles.
   getStyles: function() {
+    // Matches the assumed filename MMM-GeminiChat.css
     return ["MMM-GeminiChat.css"];
   },
 
@@ -74,29 +76,25 @@ Module.register("MMM-Template", {
   stop: function() {
     Log.info("Stopping module: " + this.name);
     this.clearTestInterval(); // Stop sending test messages
-    // Optionally notify helper to stop, although helper's own stop should handle cleanup
-    // if (this.isSessionActive) {
-    //     this.sendSocketNotification("STOP_CHAT");
-    // }
   },
 
-  // --- MODIFICATION: Function to start the test interval ---
+  // --- Function to start the test interval ---
   startTestInterval: function() {
-    // Clear any existing interval first
-    this.clearTestInterval();
+    this.clearTestInterval(); // Clear any existing interval first
 
     if (this.config.sendTestMessageInterval && this.config.sendTestMessageInterval > 0) {
       Log.info(`${this.name}: Starting test message interval (${this.config.sendTestMessageInterval}ms).`);
       this.testIntervalId = setInterval(() => {
-        // Only send if the session is marked as active
-        if (this.isSessionActive) {
+        if (this.isSessionActive) { // Only send if the session is marked as active
           Log.info(`${this.name}: Sending test message: "${this.config.testMessage}"`);
           this.status = `Sending test: "${this.config.testMessage}"`;
           this.updateDom();
+          // Send the actual notification to the node_helper
           this.sendSocketNotification("SEND_TEXT", this.config.testMessage);
         } else {
-          Log.warn(`${this.name}: Test interval fired, but session is not active. Interval should have been cleared.`);
-          this.clearTestInterval(); // Clear it just in case
+          // Safeguard: If interval runs while session inactive, log and clear.
+          Log.warn(`${this.name}: Test interval fired, but session is not active. Clearing interval.`);
+          this.clearTestInterval();
         }
       }, this.config.sendTestMessageInterval);
     } else {
@@ -104,7 +102,7 @@ Module.register("MMM-Template", {
     }
   },
 
-  // --- MODIFICATION: Function to clear the test interval ---
+  // --- Function to clear the test interval ---
   clearTestInterval: function() {
     if (this.testIntervalId) {
       Log.info(this.name + ": Clearing test message interval.");
@@ -115,37 +113,37 @@ Module.register("MMM-Template", {
 
   // Handle notifications from other modules or core system.
   notificationReceived: function(notification, payload, sender) {
-    // We keep SEND_TEXT and STOP_CHAT in case you want external control *in addition* to the automatic behavior
+    // Handle external SEND_TEXT (e.g., from voice control)
     if (notification === "SEND_TEXT") {
-      Log.info(this.name + " received notification: " + notification + " with payload: " + payload);
+      Log.info(this.name + " received external notification: " + notification + " with payload: " + payload);
       if (this.isSessionActive) {
         if (payload && typeof payload === 'string' && payload.trim().length > 0) {
-          // If receiving external text, maybe temporarily pause or reset timer? (Optional)
-          // this.clearTestInterval(); // Example: stop testing if manual text comes in
           this.status = `Sending: "${payload.substring(0, 30)}${payload.length > 30 ? '...' : ''}"`;
           this.updateDom();
           this.sendSocketNotification("SEND_TEXT", payload.trim());
-          // this.startTestInterval(); // Example: restart testing after manual text
+          // Optional: Reset timer if external text is sent?
+          // this.startTestInterval();
         } else {
-          Log.warn(this.name + ": Received SEND_TEXT without valid text payload.");
+          Log.warn(this.name + ": Received external SEND_TEXT without valid text payload.");
         }
       } else {
-        Log.warn(this.name + ": Cannot send text, chat session not active.");
+        Log.warn(this.name + ": Cannot send external text, chat session not active.");
         this.status = "Error: Chat not active.";
         this.updateDom();
       }
-    } else if (notification === "STOP_CHAT") {
-      Log.info(this.name + " received notification: " + notification);
-      this.clearTestInterval(); // Stop sending test messages if chat is stopped externally
+    }
+    // Handle external STOP_CHAT
+    else if (notification === "STOP_CHAT") {
+      Log.info(this.name + " received external notification: " + notification);
+      this.clearTestInterval(); // Stop testing if chat stopped externally
       if (this.isSessionActive) {
         this.status = "Stopping chat session...";
         this.updateDom();
         this.sendSocketNotification("STOP_CHAT");
       } else {
-        Log.warn(this.name + ": Chat session not active. Ignoring STOP_CHAT.");
+        Log.warn(this.name + ": Chat session not active. Ignoring external STOP_CHAT.");
       }
     }
-    // START_CHAT notification is no longer needed here as it starts automatically
   },
 
   // Handle notifications from node_helper.js
@@ -158,26 +156,22 @@ Module.register("MMM-Template", {
       case "CHAT_STARTED":
         this.status = "Chat session active.";
         this.isSessionActive = true;
-        // --- MODIFICATION: Start the interval timer AFTER chat is confirmed started ---
+        // Start the interval timer AFTER chat is confirmed started
         this.startTestInterval();
         break;
       case "CHAT_ENDED":
         this.status = "Chat session ended." + (payload ? ` Reason: ${payload}` : '');
         this.isSessionActive = false;
-        // --- MODIFICATION: Stop the interval timer when chat ends ---
+        // Stop the interval timer when chat ends
         this.clearTestInterval();
         break;
       case "STATUS_UPDATE":
-        // Avoid overwriting critical states like "ended" or "error" if a status update comes late
+        // Avoid overwriting critical end/error states
         if (this.isSessionActive) {
-          this.status = payload;
-        } else if (this.status.startsWith("Error:")) {
-                    // Keep error state displayed
-                } else if (this.status.startsWith("Chat session ended")) {
-          // Keep ended state displayed
-        } else {
-                    this.status = payload; // Allow status update if not in critical end/error state
-                }
+            this.status = payload;
+        } else if (!this.status.startsWith("Error:") && !this.status.startsWith("Chat session ended")) {
+            this.status = payload;
+        }
         break;
       case "AUDIO_CHUNK_PLAYING":
         if(this.isSessionActive) this.status = "Playing audio response...";
@@ -188,7 +182,7 @@ Module.register("MMM-Template", {
       case "ERROR":
         this.status = "Error: " + payload;
         this.isSessionActive = false;
-        // --- MODIFICATION: Stop the interval timer on error ---
+        // Stop the interval timer on error
         this.clearTestInterval();
         Log.error(this.name + ": Node helper error - " + payload);
         break;

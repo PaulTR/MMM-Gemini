@@ -26,7 +26,7 @@ module.exports = NodeHelper.create({
     async socketNotificationReceived(notification, payload) {
 
         if( notification === "SEND_TEXT") {
-            if( !liveSession ) {
+            if( !this.liveSession ) {
                 const apiKey = payload.apikey;
                 this.initializeGenAI(apiKey);
 

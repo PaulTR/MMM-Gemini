@@ -267,23 +267,23 @@ module.exports = NodeHelper.create({
                             onopen: () => {
                                 console.log('NodeHelper: Live Connection OPENED.');
                                 this.sendSocketNotification("CHAT_STARTED", { text: "chat started"});
-                                // Send the initial message
-                                try {
-                                    if (this.liveSession) { // Check if session still exists
-                                        console.log("NodeHelper: Sending initial text:", inputText);
-                                        this.liveSession.sendClientContent({ turns: inputText });
-                                    } else {
-                                        console.warn("NodeHelper: Session closed before initial text could be sent.");
-                                    }
-                                } catch (sendError) {
-                                    console.error("NodeHelper: Error sending initial text:", sendError);
-                                    this.sendSocketNotification("CHAT_ERROR", { message: `Error sending initial message: ${sendError.message}` });
-                                    this.stopLiveChat("send_error");
-                                }
+                                // // Send the initial message
+                                // try {
+                                //     if (this.liveSession) { // Check if session still exists
+                                //         console.log("NodeHelper: Sending initial text:", inputText);
+                                //         this.liveSession.sendClientContent({ turns: inputText });
+                                //     } else {
+                                //         console.warn("NodeHelper: Session closed before initial text could be sent.");
+                                //     }
+                                // } catch (sendError) {
+                                //     console.error("NodeHelper: Error sending initial text:", sendError);
+                                //     this.sendSocketNotification("CHAT_ERROR", { message: `Error sending initial message: ${sendError.message}` });
+                                //     this.stopLiveChat("send_error");
+                                // }
                             },
                             onmessage: (message) => {
                                 this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: JSON.stringify(message) });
-                                // console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
+                                console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
                                 const parts = message?.serverContent?.modelTurn?.parts;
                                 if (parts && Array.isArray(parts)) {
                                     for (const part of parts) {

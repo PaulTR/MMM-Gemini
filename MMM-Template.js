@@ -19,9 +19,9 @@ Module.register("MMM-Template", {
     this.apikey = this.config.apikey
 
     // set timeout for next random text
-    setInterval(() => this.generateImage(), 30000)
+    // setInterval(() => this.generateImage(), 30000)
 
-    // this.startChat()
+    this.startChat()
 
   },
 
@@ -74,7 +74,7 @@ Module.register("MMM-Template", {
     console.log("start chat")
     this.templateContent = "start chat"
     this.updateDom()
-    this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}` })
+    this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}`, text: "Good morning! Tell me a joke about a magic mirror please" })
   }
 })
 

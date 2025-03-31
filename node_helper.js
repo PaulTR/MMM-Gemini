@@ -219,6 +219,7 @@ module.exports = NodeHelper.create({
                 try {
                     if (this.liveSession) { // Check if session still exists
                         console.log("NodeHelper: Sending initial text:", inputText);
+                        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: inputText });
                         this.liveSession.sendClientContent({ turns: inputText });
                     } else {
                         console.warn("NodeHelper: Session closed before initial text could be sent.");

@@ -18,10 +18,9 @@ Module.register("MMM-Template", {
     this.templateContent = this.config.exampleContent
     this.apikey = this.config.apikey
 
-    // set timeout for next random text
-    // setInterval(() => this.generateImage(), 30000)
-
     this.startChat()
+
+    setInterval(() => this.sendText(), 5000)
 
   },
 
@@ -38,6 +37,11 @@ Module.register("MMM-Template", {
       this.updateDom()
     }
     if (notification === "CHAT_ERROR") {
+      this.templateContent = `${this.config.apikey} ${payload.text}`
+      this.updateDom()
+    }
+
+    if (notification === "CHAT_STARTED") {
       this.templateContent = `${this.config.apikey} ${payload.text}`
       this.updateDom()
     }
@@ -79,7 +83,14 @@ Module.register("MMM-Template", {
     this.templateContent = "start chat"
     this.updateDom()
     this.sendSocketNotification("START_CHAT", { apikey: `${this.config.apikey}`, text: "Good morning! Tell me a joke about a magic mirror please" })
-  }
+  },
+
+  sendText: async function() {
+    console.log("start chat")
+    this.templateContent = "start chat"
+    this.updateDom()
+    this.sendSocketNotification("SEND_TEXT", { apikey: `${this.config.apikey}`, text: "Good morning! Tell me a joke about a magic mirror please" })
+  },
 })
 
 

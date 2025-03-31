@@ -24,6 +24,36 @@ module.exports = NodeHelper.create({
     },
 
     async socketNotificationReceived(notification, payload) {
+
+        if( notification === "START_CHAT") {
+            const apiKey = payload.apikey;
+            this.initializeGenAI(apiKey);
+
+            this.liveSession = await this.genAI.live.connect({
+                        model: 'gemini-2.0-flash-exp', // Or your preferred model supporting Live API
+                        callbacks: {
+                            // Use arrow functions to maintain 'this' context
+                            onopen: () => {
+                                console.log('NodeHelper: Live Connection OPENED.');
+                            },
+                            onmessage: (message) => {
+                                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: JSON.stringify(message) });
+                                console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
+                                const parts = message?.serverContent?.modelTurn?.parts;
+                                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: part.text });
+                            },
+                            onerror: (e) => {
+                                console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object
+                                console.error('NodeHelper: Live Connection ERROR Message:', e?.message || 'No message');
+                            },
+                            onclose: (e) => {
+                                
+                            },
+                        },
+                        config: { responseModalities: [Modality.TEXT] }, // Request only audio
+                    });
+        }
+
         if (notification === "GET_RANDOM_TEXT") {
             const amountCharacters = payload.amountCharacters || 10;
             const randomText = Array.from({ length: amountCharacters }, () =>

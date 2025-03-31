@@ -4,7 +4,7 @@
  * By Your Name
  * MIT Licensed.
  */
-Module.register("MMM-GeminiChat", { // <-- Renamed for consistency
+Module.register("MMM-Template", { // <-- Renamed for consistency
   // Default module config.
   defaults: {
     apiKey: null, // IMPORTANT: Set this in config.js

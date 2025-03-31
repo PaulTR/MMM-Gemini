@@ -214,6 +214,20 @@ module.exports = NodeHelper.create({
         }
 
         try {
+            if (notification === "SEND_TEXT") {
+                try {
+                    if (this.liveSession) { // Check if session still exists
+                        console.log("NodeHelper: Sending initial text:", inputText);
+                        this.liveSession.sendClientContent({ turns: inputText });
+                    } else {
+                        console.warn("NodeHelper: Session closed before initial text could be sent.");
+                    }
+                } catch (sendError) {
+                    console.error("NodeHelper: Error sending initial text:", sendError);
+                    this.sendSocketNotification("CHAT_ERROR", { message: `Error sending initial message: ${sendError.message}` });
+                    this.stopLiveChat("send_error");
+                }
+            }
             if (notification === "START_CHAT") {
                 const inputText = payload?.text;
                 const apiKey = this.apiKey || payload?.apikey; // Use stored or provided key
@@ -251,9 +265,8 @@ module.exports = NodeHelper.create({
                             // Use arrow functions to maintain 'this' context
                             onopen: () => {
                                 console.log('NodeHelper: Live Connection OPENED.');
-                                this.sendSocketNotification("CHAT_STARTED", {});
+                                this.sendSocketNotification("CHAT_STARTED", { text: "chat started"});
                                 // Send the initial message
-                                await sleep(2000);
                                 try {
                                     if (this.liveSession) { // Check if session still exists
                                         console.log("NodeHelper: Sending initial text:", inputText);
@@ -356,10 +369,6 @@ module.exports = NodeHelper.create({
                  source_notification: notification,
                  message: `Error processing ${notification}: ${error.message}`
             });
-            // If an error occurs during chat setup/interaction, ensure cleanup
-            if (notification === "START_CHAT" && this.liveSession) {
-                 await this.stopLiveChat("processing_error");
-            }
         }
     },
 });

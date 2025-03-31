@@ -216,19 +216,9 @@ module.exports = NodeHelper.create({
         try {
             const inputText = payload?.text;
             if (notification === "SEND_TEXT") {
-                try {
-                    if (this.liveSession) { // Check if session still exists
-                        console.log("NodeHelper: Sending initial text:", inputText);
-                        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: inputText });
-                        this.liveSession.sendClientContent({ turns: inputText });
-                    } else {
-                        console.warn("NodeHelper: Session closed before initial text could be sent.");
-                    }
-                } catch (sendError) {
-                    console.error("NodeHelper: Error sending initial text:", sendError);
-                    this.sendSocketNotification("CHAT_ERROR", { message: `Error sending initial message: ${sendError.message}` });
-                    this.stopLiveChat("send_error");
-                }
+                console.log("NodeHelper: Sending initial text:", inputText);
+                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: inputText });
+                this.liveSession.sendClientContent({ turns: inputText });
             }
             if (notification === "START_CHAT") {
                 const inputText = payload?.text;

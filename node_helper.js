@@ -1,367 +1,450 @@
+/* Magic Mirror
+ * Node Helper: MMM-GeminiChat
+ *
+ * By Your Name
+ * MIT Licensed.
+ */
 const NodeHelper = require("node_helper");
-const { GoogleGenAI, Modality } = require("@google/genai"); // Removed unused imports for clarity
-const fs = require('fs');
-const Speaker = require('speaker');
-const { Writable } = require('node:stream'); // Needed for type checking Speaker instance
+const Log = require("logger"); // Use MagicMirror logger
 
-// --- Audio Configuration ---
-const SAMPLE_RATE = 24000;
-const CHANNELS = 1;
-const BIT_DEPTH = 16;
-const INTER_CHUNK_DELAY_MS = 100; // Adjusted delay, tune as needed
+// --- Dependencies ---
+// Ensure these are installed in the module folder:
+// cd ~/MagicMirror/modules/MMM-GeminiChat
+// npm install @google/genai speaker
+let GoogleGenAI, Modality, Speaker, Writable;
+let googleGenaiError = null;
+let speakerError = null;
+
+try {
+    ({ GoogleGenAI, Modality } = require("@google/genai"));
+} catch (e) {
+    googleGenaiError = e;
+    Log.error("MMM-GeminiChat: Failed to load '@google/genai'. Please run 'npm install' in the MMM-GeminiChat directory.", e);
+}
+try {
+    Speaker = require("speaker");
+} catch (e) {
+    speakerError = e;
+    Log.error("MMM-GeminiChat: Failed to load 'speaker'. Please run 'npm install' in the MMM-GeminiChat directory.", e);
+}
+try {
+    ({ Writable } = require("node:stream"));
+} catch (e) {
+    // Should be built-in, but log just in case
+    Log.error("MMM-GeminiChat: Failed to load 'stream'. This is unexpected.", e);
+}
+
 
 module.exports = NodeHelper.create({
-    // --- Module State ---
-    genAI: null,
-    liveSession: null,
-    apiKey: null, // Store the API key
-
-    // --- Audio Playback State ---
+    // Properties
+    config: null, // Will store config received from module
+    client: null, // Gemini client instance
+    session: null, // Gemini live session instance
     audioQueue: [],
     isPlaying: false,
-    currentSpeaker: null, // Keep track of the current speaker instance
+    connectionClosed: true,
+    responseQueue: [], // Queue for messages from Gemini
 
-    // --- GenAI Initialization ---
-    initializeGenAI: function (apiKey) {
-        if (!apiKey) {
-            console.error("NodeHelper: API Key is missing for GenAI initialization.");
-            return false; // Indicate failure
+    // Override start method.
+    start: function() {
+        Log.log("Starting node helper for: " + this.name);
+        this.audioQueue = [];
+        this.isPlaying = false;
+        this.connectionClosed = true;
+        this.responseQueue = [];
+
+        if (googleGenaiError || speakerError) {
+            Log.error(this.name + ": Dependency loading failed. Helper will not function.");
+            // Optionally send an error notification back immediately
+            // this.sendSocketNotification("ERROR", "Failed to load dependencies. Check MM logs.");
         }
-        // Re-initialize if key changes or not initialized
-        // **IMPORTANT**: Added httpOptions for v1alpha required by Live API
-        if (!this.genAI || this.apiKey !== apiKey) {
-            console.log("NodeHelper: Initializing GoogleGenAI for Live Chat/Audio...");
-            try {
-                this.genAI = new GoogleGenAI({
-                    apiKey: apiKey,
-                    httpOptions: { apiVersion: 'v1alpha' }, // Specify v1alpha
-                    vertexai: false // Assuming you are not using Vertex AI endpoint
-                });
-                this.apiKey = apiKey; // Store the key used for initialization
-                console.log("NodeHelper: GoogleGenAI initialized successfully.");
-                return true; // Indicate success
-            } catch (error) {
-                console.error("NodeHelper: Error initializing GoogleGenAI:", error);
-                this.genAI = null; // Reset on failure
-                this.apiKey = null;
-                return false; // Indicate failure
-            }
-        }
-        return true; // Already initialized with the correct key
     },
 
-    // --- Audio Playback Logic (Adapted from your Node.js script) ---
-    queueAudioChunk: function (base64Data) {
+    // --- Audio Playback Handling (Adapted from original script) ---
+    queueAudioChunk: function(base64Data) {
         if (!base64Data) return;
         try {
             const buffer = Buffer.from(base64Data, 'base64');
             this.audioQueue.push(buffer);
-            // Use setImmediate to avoid blocking the current event loop tick
+            // Trigger processing asynchronously. If already playing, it will wait.
             setImmediate(() => this.processNextAudioChunk());
         } catch (error) {
-            console.error('NodeHelper: Error decoding base64 audio:', error);
-            this.sendSocketNotification("CHAT_ERROR", { message: "Error decoding audio data." });
+            Log.error(`\n${this.name}: Error decoding base64 audio:`, error);
+            this.sendSocketNotification("ERROR", "Audio decoding failed.");
         }
     },
 
-    processNextAudioChunk: function () {
-        // Use arrow function for setTimeout/setImmediate to maintain 'this' context
-        const checkNext = () => setImmediate(() => this.processNextAudioChunk());
-
+    processNextAudioChunk: function() {
+        if (!Speaker || !Writable) {
+            Log.error(this.name + ": Speaker or Stream module not loaded. Cannot play audio.");
+            this.audioQueue = []; // Clear queue if we can't process it
+            this.sendSocketNotification("ERROR", "Audio components not loaded.");
+            return;
+        }
         if (this.isPlaying || this.audioQueue.length === 0) {
-            return; // Either already playing or queue is empty
+            if (this.audioQueue.length === 0 && !this.isPlaying) {
+                // Queue is empty and nothing is playing right now
+                // This might be the final end of playback for a turn
+                // Log.log(this.name + ": Audio queue empty and not playing.");
+            }
+            return;
         }
 
         this.isPlaying = true;
+        this.sendSocketNotification("AUDIO_CHUNK_PLAYING"); // Notify frontend
         const buffer = this.audioQueue.shift();
-        this.currentSpeaker = null; // Reset before creating a new one
+        let currentSpeaker = null;
 
-        const cleanupAndProceed = (errorOccurred = false) => {
-             // console.log(`[cleanupAndProceed] Called. Error: ${errorOccurred}, isPlaying: ${this.isPlaying}`);
-             if (!this.isPlaying) { return; } // Avoid double cleanup
+        const cleanupAndProceed = (speakerInstance, errorOccurred = false) => {
+            if (!this.isPlaying) { return; } // Already cleaned up or wasn't playing
 
-             const speakerToDestroy = this.currentSpeaker; // Capture current speaker
-             this.isPlaying = false;          // Release lock *before* delay
-             this.currentSpeaker = null;      // Clear reference
+            this.isPlaying = false; // Release the lock *before* the delay
 
-             if (speakerToDestroy && !speakerToDestroy.destroyed) {
-                 // console.log("[cleanupAndProceed] Destroying speaker instance.");
-                 try {
-                     speakerToDestroy.destroy();
-                 } catch (e) {
-                     console.warn("NodeHelper: Warning: Error destroying speaker during cleanup:", e.message);
-                 }
-             } else {
-                 // console.log("[cleanupAndProceed] Speaker already destroyed or null.");
-             }
+            if (speakerInstance && !speakerInstance.destroyed) {
+                try { speakerInstance.destroy(); } catch (e) { Log.warn(`${this.name}: Warning: Error destroying speaker during cleanup: ${e.message}`); }
+            }
+            currentSpeaker = null;
 
-             // Schedule next check with delay
-             if (INTER_CHUNK_DELAY_MS > 0) {
-                 // console.log(`[cleanupAndProceed] Waiting ${INTER_CHUNK_DELAY_MS}ms before next check.`);
-                 setTimeout(() => {
-                     // console.log("[cleanupAndProceed] Delay finished. Checking queue.");
-                     checkNext();
-                 }, INTER_CHUNK_DELAY_MS);
-             } else {
-                 checkNext(); // Check immediately if no delay
-             }
-         };
+            const delay = this.config?.interChunkDelayMs ?? 250; // Use configured delay
+
+            if (delay > 0) {
+                if (this.config.debug) Log.log(`[${this.name}] Audio chunk finished. Waiting ${delay}ms before next check.`);
+                setTimeout(() => {
+                    if (this.config.debug) Log.log(`[${this.name}] Delay finished. Checking for next chunk.`);
+                    this.processNextAudioChunk(); // Check queue after delay
+                }, delay);
+            } else {
+                // If delay is 0, behave like setImmediate
+                setImmediate(() => this.processNextAudioChunk());
+            }
+        };
 
         try {
-            console.log(`NodeHelper: Playing audio chunk (${buffer.length} bytes)...`);
-            this.currentSpeaker = new Speaker({
-                channels: CHANNELS,
-                bitDepth: BIT_DEPTH,
-                sampleRate: SAMPLE_RATE,
+            if (this.config.debug) Log.log(`\n[${this.name}] Playing audio chunk (${buffer.length} bytes)...`);
+            currentSpeaker = new Speaker({
+                channels: this.config?.audioChannels ?? 1,
+                bitDepth: this.config?.audioBitDepth ?? 16,
+                sampleRate: this.config?.audioSampleRate ?? 24000,
             });
 
-            this.currentSpeaker.once('error', (err) => {
-                console.error('NodeHelper: Speaker Error:', err.message);
-                // Don't call checkNext directly from event handlers, use cleanup
-                cleanupAndProceed(true);
+            currentSpeaker.once('error', (err) => {
+                Log.error(`\n${this.name}: Speaker Error:`, err.message);
+                this.sendSocketNotification("ERROR", "Speaker error during playback.");
+                cleanupAndProceed(currentSpeaker, true);
             });
 
-            this.currentSpeaker.once('close', () => { // 'close' often signifies end of stream processing
-                // console.log('NodeHelper: Audio chunk finished playing (speaker closed).');
-                // Don't call checkNext directly from event handlers, use cleanup
-                cleanupAndProceed(false);
+            currentSpeaker.once('close', () => {
+                if (this.config.debug) Log.log(`[${this.name}] Audio chunk finished playing.`);
+                cleanupAndProceed(currentSpeaker, false);
             });
 
-            // Ensure it's writable and not destroyed before writing/ending
-            if (this.currentSpeaker instanceof Writable && !this.currentSpeaker.destroyed) {
-                this.currentSpeaker.write(buffer, (writeErr) => {
-                    if (writeErr && !this.currentSpeaker?.destroyed) { // Check destroyed again
-                        console.error("NodeHelper: Error during speaker.write callback:", writeErr.message);
-                        // Error during write might not trigger 'error' event, ensure cleanup
-                        // cleanupAndProceed(true); // Risky: might interfere with 'close'/'error'
-                    }
-                    // End the stream *after* write completes or errors
-                    if (!this.currentSpeaker?.destroyed) {
-                        this.currentSpeaker.end((endErr) => {
-                             if (endErr && !this.currentSpeaker?.destroyed) {
-                                console.error("NodeHelper: Error during speaker.end callback:", endErr.message);
-                             }
-                             // 'close' event should handle the cleanupAndProceed call
-                        });
-                    } else {
-                         console.warn("NodeHelper: Speaker destroyed before end could be called.");
-                         // If already destroyed, cleanup might have happened or is pending
+            // Check if the speaker is writable and not destroyed before writing
+            if (currentSpeaker instanceof Writable && !currentSpeaker.destroyed) {
+                currentSpeaker.write(buffer, (writeErr) => {
+                    // This callback might be called after 'close' or 'error' in some edge cases
+                    if (writeErr && currentSpeaker && !currentSpeaker.destroyed) {
+                        Log.error(`\n${this.name}: Error during speaker.write callback:`, writeErr.message);
+                        // Don't call cleanup here, rely on 'error' or 'close' handlers
                     }
                 });
-
+                // End the stream once all data is written.
+                currentSpeaker.end();
             } else {
-                 console.error("NodeHelper: Error: Speaker instance is not writable or already destroyed before write.");
-                 cleanupAndProceed(true); // Ensure cleanup if write fails immediately
+                // Handle the case where the speaker might already be closed/destroyed before write attempt
+                if (currentSpeaker && !currentSpeaker.destroyed) {
+                    Log.error(`\n${this.name}: Error: Speaker instance is not writable before write.`);
+                    this.sendSocketNotification("ERROR", "Speaker not writable.");
+                    cleanupAndProceed(currentSpeaker, true);
+                } else {
+                    // Speaker was likely destroyed by an error or close event already handled
+                    Log.warn(`\n${this.name}: Speaker already destroyed before write could occur.`);
+                    // cleanupAndProceed was likely already called or will be shortly
+                }
             }
 
         } catch (speakerCreationError) {
-            console.error("NodeHelper: Error creating Speaker instance:", speakerCreationError.message);
-            this.isPlaying = false; // Ensure lock is released
-            this.currentSpeaker = null; // Clear potentially bad instance
-            this.sendSocketNotification("CHAT_ERROR", { message: "Failed to create audio speaker." });
-            // Check queue again in case this was transient, but after a short delay
-            setTimeout(checkNext, 50);
+            Log.error(`\n${this.name}: Error creating Speaker instance:`, speakerCreationError.message);
+            this.sendSocketNotification("ERROR", "Failed to create audio speaker.");
+            cleanupAndProceed(currentSpeaker, true); // Pass potentially null speaker instance
         }
     },
 
-    // --- Stop Live Chat and Audio Cleanup ---
-    stopLiveChat: async function(reason = "stopped") {
-        console.log(`NodeHelper: Stopping Live Chat. Reason: ${reason}`);
-        if (this.liveSession) {
-            try {
-                await this.liveSession.close(); // Asynchronously close the session
-                console.log("NodeHelper: Live session closed.");
-            } catch (e) {
-                console.warn("NodeHelper: Error closing live session:", e.message);
-            } finally {
-                 this.liveSession = null; // Ensure it's nullified even if close throws
-            }
-        } else {
-             console.log("NodeHelper: No active live session to close.");
-        }
 
-        // Stop audio playback and clear queue
-        console.log("NodeHelper: Clearing audio queue and stopping playback.");
-        this.audioQueue = []; // Clear pending chunks
-        if (this.isPlaying && this.currentSpeaker && !this.currentSpeaker.destroyed) {
-             console.log("NodeHelper: Destroying active speaker instance.");
-            try {
-                 this.currentSpeaker.destroy(); // Force stop current playback
-            } catch(e) {
-                 console.warn("NodeHelper: Error destroying speaker during stop:", e.message);
-            }
-        }
-        this.isPlaying = false;
-        this.currentSpeaker = null;
+    // --- Gemini Interaction Logic ---
 
-        // Optionally notify the main module
-        this.sendSocketNotification("CHAT_CLOSED", { reason: reason });
+    async waitMessage() {
+        let done = false;
+        let message = undefined;
+        while (!done && !this.connectionClosed) {
+            message = this.responseQueue.shift();
+            if (message) { done = true; }
+            else { await new Promise((resolve) => setTimeout(resolve, 50)); } // Check queue periodically
+        }
+        return this.connectionClosed ? undefined : message;
     },
 
-    // --- Socket Notification Handler ---
-    async socketNotificationReceived(notification, payload) {
-        console.log(`NodeHelper received notification: ${notification}`);
-
-        // Store API key if provided, useful for START_CHAT
-        if (payload?.apikey) {
-            // Only update if different, avoid unnecessary re-init attempts
-             if (this.apiKey !== payload.apikey) {
-                console.log("NodeHelper: API Key updated.");
-                this.apiKey = payload.apikey;
-                // Force re-initialization on next use if key changes
-                this.genAI = null;
-             }
+    async startChatSession(initialPrompt = null) {
+        if (!GoogleGenAI) {
+            Log.error(this.name + ": GoogleGenAI not loaded. Cannot start chat.");
+            this.sendSocketNotification("ERROR", "Gemini library not loaded.");
+            return;
         }
+        if (!this.config || !this.config.apiKey) {
+            Log.error(this.name + ": Configuration or API Key missing.");
+            this.sendSocketNotification("ERROR", "Configuration or API Key missing.");
+            return;
+        }
+        if (this.session) {
+            Log.warn(this.name + ": Session already active. Please stop first.");
+            this.sendSocketNotification("STATUS_UPDATE", "Session already active.");
+            return;
+        }
+
+        this.sendSocketNotification("STATUS_UPDATE", "Initializing Gemini Client...");
+        Log.log(this.name + ": Initializing Gemini Client...");
+        try {
+            this.client = new GoogleGenAI({
+                vertexai: false, // Assuming standard Gemini API
+                apiKey: this.config.apiKey,
+                httpOptions: { apiVersion: 'v1alpha' }, // Keep using alpha for live
+            });
+        } catch (e) {
+            Log.error(this.name + ": Failed to initialize GoogleGenAI client:", e);
+            this.sendSocketNotification("ERROR", "Failed to initialize Gemini Client: " + e.message);
+            this.client = null;
+            return;
+        }
+
+
+        Log.log(this.name + ": Connecting to Gemini Live API...");
+        this.sendSocketNotification("STATUS_UPDATE", "Connecting to Gemini...");
+        this.connectionClosed = false; // Assume connection will open
+        this.responseQueue = []; // Clear response queue for new session
+        this.audioQueue = []; // Clear audio queue
+        this.isPlaying = false; // Reset playing state
+
 
         try {
-            const inputText = payload?.text;
-            if (notification === "SEND_TEXT") {
-                console.log("NodeHelper: Sending initial text:", inputText);
-                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: inputText });
-                this.liveSession.sendClientContent({ turns: inputText });
-            }
-            if (notification === "START_CHAT") {
-                const inputText = payload?.text;
-                const apiKey = this.apiKey || payload?.apikey; // Use stored or provided key
-
-                if (!apiKey) {
-                    console.error("NodeHelper: API Key required for START_CHAT.");
-                    this.sendSocketNotification("CHAT_ERROR", { message: "API Key is required." });
-                    return;
-                }
-                if (!inputText) {
-                    console.error("NodeHelper: Initial text input required for START_CHAT.");
-                    this.sendSocketNotification("CHAT_ERROR", { message: "Initial text is required." });
-                    return;
-                }
-
-                if (this.liveSession) {
-                    console.warn("NodeHelper: A chat session is already active. Stopping the old one before starting new.");
-                    await this.stopLiveChat("new_session_requested");
-                }
-
-                // Initialize GenAI *before* connecting
-                if (!this.initializeGenAI(apiKey)) {
-                     console.error("NodeHelper: Failed to initialize Google GenAI. Cannot start chat.");
-                     this.sendSocketNotification("CHAT_ERROR", { message: "Failed to initialize Google GenAI." });
-                     return;
-                }
-
-                console.log("NodeHelper: Attempting to connect to Gemini Live API...");
-                this.sendSocketNotification("CHAT_CONNECTING", {}); // Notify module connection attempt
-
-                try {
-                    this.liveSession = await this.genAI.live.connect({
-                        model: 'gemini-2.0-flash-exp', // Or your preferred model supporting Live API
-                        callbacks: {
-                            // Use arrow functions to maintain 'this' context
-                            onopen: () => {
-                                console.log('NodeHelper: Live Connection OPENED.');
-                                this.sendSocketNotification("CHAT_STARTED", { text: "chat started"});
-                                // // Send the initial message
-                                // try {
-                                //     if (this.liveSession) { // Check if session still exists
-                                //         console.log("NodeHelper: Sending initial text:", inputText);
-                                //         this.liveSession.sendClientContent({ turns: inputText });
-                                //     } else {
-                                //         console.warn("NodeHelper: Session closed before initial text could be sent.");
-                                //     }
-                                // } catch (sendError) {
-                                //     console.error("NodeHelper: Error sending initial text:", sendError);
-                                //     this.sendSocketNotification("CHAT_ERROR", { message: `Error sending initial message: ${sendError.message}` });
-                                //     this.stopLiveChat("send_error");
-                                // }
-                            },
-                            onmessage: (message) => {
-                                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: JSON.stringify(message) });
-                                console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
-                                const parts = message?.serverContent?.modelTurn?.parts;
-                                if (parts && Array.isArray(parts)) {
-                                    for (const part of parts) {
-                                        if (part.inlineData &&
-                                            part.inlineData.mimeType === `audio/pcm;rate=${SAMPLE_RATE}` &&
-                                            part.inlineData.data)
-                                        {
-                                            // console.log("NodeHelper: Queuing audio chunk."); // Less verbose log
-                                            this.queueAudioChunk(part.inlineData.data);
-                                        } else if (part.text) {
-                                            // Optional: Send text back to module if needed for display
-                                            // console.log("NodeHelper: Received text part:", part.text);
-                                            // this.sendSocketNotification("CHAT_TEXT_RECEIVED", { text: part.text });
-                                        }
-                                    }
-                                }
-
-                                // Check if the turn or entire interaction finished
-                                const turnComplete = message?.serverContent?.turnComplete === true;
-                                const finishReason = message?.serverContent?.candidates?.[0]?.finishReason;
-
-                                if (turnComplete) {
-                                    console.log("NodeHelper: Model turn complete.");
-                                    // Optional: Notify module turn is complete if needed
-                                    // this.sendSocketNotification("CHAT_TURN_COMPLETE", {});
-                                }
-                                if (finishReason && finishReason !== "STOP") {
-                                     console.warn(`NodeHelper: Model stopped with reason: ${finishReason}`);
-                                     // Treat non-STOP reasons as potentially ending the interaction or turn
-                                     // Depending on the reason, you might want to stop the session or just log it
-                                     if (finishReason === "ERROR" || finishReason === "SAFETY") {
-                                         this.stopLiveChat(`finish_reason_${finishReason}`);
-                                     }
-                                 }
-                            },
-                            onerror: (e) => {
-                                console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object
-                                console.error('NodeHelper: Live Connection ERROR Message:', e?.message || 'No message');
-                                this.sendSocketNotification("CHAT_ERROR", { message: `Connection Error: ${e?.message || 'Unknown error'}` });
-                                this.stopLiveChat("connection_error");
-                            },
-                            onclose: (e) => {
-                                // Check if it was closed intentionally by us (liveSession is null after stopLiveChat)
-                                if (this.liveSession) { // Check *before* calling stopLiveChat
-                                     console.log('NodeHelper: Live Connection CLOSED by server. Event Object:', e); // Log object
-                                     const reason = e?.reason || 'No reason provided';
-                                     console.log('NodeHelper: Live Connection CLOSED by server. Reason:', reason);
-                                     this.sendSocketNotification("CHAT_CLOSED", { reason: `Closed by server: ${reason}` });
-                                     this.stopLiveChat("closed_by_server"); // Cleanup
-                                } else {
-                                     console.log('NodeHelper: Live Connection closed (likely initiated by helper).');
-                                }
-                            },
-                        },
-                        config: { responseModalities: [Modality.TEXT] }, // Request only audio
-                    });
-                } catch (connectError) {
-                    console.error("NodeHelper: Error connecting to Live API:", connectError);
-                    this.sendSocketNotification("CHAT_ERROR", { message: `Connection failed: ${connectError.message}` });
-                    this.liveSession = null; // Ensure session is nullified
-                }
-
-            } else if (notification === "STOP_CHAT") {
-                await this.stopLiveChat("user_request");
-
-            } else if (notification === "GENERATE_TEXT" || notification === "GENERATE_IMAGE") {
-                console.warn(`NodeHelper: Received ${notification} while live chat might be active. This might conflict or be ignored.`);
-                // Decide how to handle this - maybe stop the chat first?
-                // if (this.liveSession) await this.stopLiveChat("other_request");
-                // Then proceed with text/image generation (code omitted for brevity, assuming it's elsewhere)
-                // ... your existing GENERATE_TEXT / GENERATE_IMAGE code ...
-
-            } else if (notification === "GET_RANDOM_TEXT") {
-                 // Your existing code for GET_RANDOM_TEXT
-                 const amountCharacters = payload.amountCharacters || 10;
-                 const randomText = Array.from({ length: amountCharacters }, () =>
-                     String.fromCharCode(Math.floor(Math.random() * 26) + 97)
-                 ).join("");
-                 this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText });
-            }
-
-        } catch (error) {
-            console.error(`NodeHelper: Error processing notification ${notification}:`, error);
-            this.sendSocketNotification("NOTIFICATION_ERROR", { // Use a generic error notification
-                 source_notification: notification,
-                 message: `Error processing ${notification}: ${error.message}`
+            this.session = await this.client.live.connect({
+                model: 'gemini-2.0-flash-exp', // Or make this configurable
+                callbacks: {
+                    onopen: () => {
+                        Log.log(`\n${this.name}: Connection OPENED.`);
+                        this.sendSocketNotification("CHAT_STARTED");
+                        this.sendSocketNotification("STATUS_UPDATE", "Connected. Ready for input.");
+                        // Automatically send initial prompt if provided
+                        if (initialPrompt && typeof initialPrompt === 'string' && initialPrompt.trim().length > 0) {
+                            Log.log(this.name + ": Sending initial prompt: " + initialPrompt);
+                            this.sendTextToGemini(initialPrompt.trim());
+                        }
+                    },
+                    onmessage: (message) => {
+                        if (this.config.debug) Log.log(`${this.name} Received message:`, JSON.stringify(message, null, 2));
+                        this.responseQueue.push(message); // Add message to queue for processing loop
+                        this.processGeminiResponse(); // Trigger processing immediately
+                    },
+                    onerror: (e) => {
+                        Log.error(`\n${this.name}: Connection ERROR:`, e?.message || e);
+                        this.sendSocketNotification("ERROR", `Connection Error: ${e?.message || 'Unknown'}`);
+                        this.cleanupSession('error');
+                    },
+                    onclose: (e) => {
+                        // Only log and notify if connection wasn't already marked as closed by an error or stop request
+                        if (!this.connectionClosed) {
+                            Log.log(`\n${this.name}: Connection CLOSED:`, e?.reason || 'Closed by server');
+                            this.cleanupSession(e?.reason || 'closed by server');
+                        }
+                    },
+                },
+                config: { responseModalities: [Modality.AUDIO] }, // Only request Audio
             });
+
+        } catch (connectError) {
+            Log.error(`\n${this.name}: Failed to connect live session:`, connectError);
+            this.sendSocketNotification("ERROR", `Connection Failed: ${connectError.message}`);
+            this.cleanupSession('connection failed');
         }
     },
+
+    async processGeminiResponse() {
+        // This function now processes messages pushed by the onmessage callback
+        while(this.responseQueue.length > 0 && !this.connectionClosed) {
+            const message = this.responseQueue.shift(); // Process messages FIFO
+            if (!message) continue; // Should not happen, but safety check
+
+            const parts = message?.serverContent?.modelTurn?.parts;
+            let turnComplete = message?.serverContent?.turnComplete === true;
+            const finishReason = message?.serverContent?.candidates?.[0]?.finishReason;
+
+            let audioFoundInMessage = false;
+            if (parts && Array.isArray(parts)) {
+                for (const part of parts) {
+                    if (part.inlineData &&
+                        part.inlineData.mimeType === `audio/pcm;rate=${this.config?.audioSampleRate ?? 24000}` &&
+                        part.inlineData.data)
+                    {
+                        this.queueAudioChunk(part.inlineData.data); // Queue audio
+                        audioFoundInMessage = true;
+                    } else if (part.text) {
+                        // Optional: Handle text parts if needed (e.g., log or send to frontend)
+                        if (this.config.debug) Log.log(`${this.name}: Received text part: ${part.text}`);
+                        // this.sendSocketNotification("RECEIVED_TEXT", part.text); // Example
+                    }
+                }
+            }
+
+            // Check for finish reason even if turnComplete is false (e.g., safety)
+            if (finishReason && finishReason !== "STOP") {
+                Log.warn(`\n[${this.name}] Model stopped with reason: ${finishReason}`);
+                turnComplete = true; // Treat non-STOP finish reasons as turn complete
+            }
+
+            if (turnComplete) {
+                Log.log(`\n${this.name}: Model turn complete (Reason: ${finishReason || 'STOP'}). Waiting for audio queue...`);
+                this.sendSocketNotification("STATUS_UPDATE", "Receiving response..."); // Or similar
+
+                // Wait for all queued audio to finish playing
+                await this.waitForAudioPlayback();
+                Log.log(`\n${this.name}: All audio for the turn finished playback.`);
+                this.sendSocketNotification("AUDIO_PLAYBACK_COMPLETE"); // Notify frontend all audio is done
+                this.sendSocketNotification("STATUS_UPDATE", "Ready for next input.");
+            } else if (audioFoundInMessage && this.config.debug) {
+                // Log if audio was found but the turn isn't complete yet (streaming)
+                // Log.log(`${this.name}: Queued intermediate audio chunk.`);
+            }
+        }
+    },
+
+    async waitForAudioPlayback() {
+        let waitCount = 0;
+        const maxWaitLoops = 600; // Approx 30 seconds max wait (600 * 50ms)
+
+        while ((this.isPlaying || this.audioQueue.length > 0) && waitCount < maxWaitLoops && !this.connectionClosed) {
+            if (waitCount % 40 === 0 && this.config.debug) { // Log less often
+                Log.log(`${this.name}: Waiting for audio playback... (Playing: ${this.isPlaying}, Queue: ${this.audioQueue.length})`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 50)); // Check every 50ms
+            waitCount++;
+        }
+
+        if (waitCount >= maxWaitLoops) {
+            Log.warn(`${this.name}: Timed out waiting for audio playback to complete.`);
+            this.sendSocketNotification("ERROR", "Timeout waiting for audio playback.");
+            // Force clear audio state in case of timeout
+            this.audioQueue = [];
+            this.isPlaying = false;
+        } else if (!this.connectionClosed) {
+            if (this.config.debug) Log.log(`${this.name}: Audio playback finished.`);
+        }
+    },
+
+    async sendTextToGemini(text) {
+        if (!this.session || this.connectionClosed) {
+            Log.error(`${this.name}: Cannot send text, no active session or connection closed.`);
+            this.sendSocketNotification("ERROR", "Cannot send text: No active session.");
+            return;
+        }
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
+            Log.warn(`${this.name}: Attempted to send empty text.`);
+            this.sendSocketNotification("STATUS_UPDATE", "Cannot send empty message.");
+            return;
+        }
+
+        Log.log(`${this.name}: Sending text: "${text}"`);
+        this.sendSocketNotification("STATUS_UPDATE", `Sending: "${text.substring(0, 30)}..."`);
+
+        try {
+            // Send the text input
+            this.session.sendClientContent({ turns: text });
+            // Processing of the response happens in the `onmessage` callback via `processGeminiResponse`
+        } catch (error) {
+            Log.error(`\n${this.name}: Error sending text to Gemini:`, error);
+            this.sendSocketNotification("ERROR", `Send Error: ${error.message}`);
+            // Consider if the session should be closed on send error
+            this.cleanupSession('send error');
+        }
+    },
+
+    cleanupSession: function(reason = 'unknown') {
+        Log.log(`${this.name}: Cleaning up session. Reason: ${reason}`);
+
+        // Prevent duplicate cleanup actions
+        if (this.connectionClosed && !this.session) {
+            Log.log(`${this.name}: Session already cleaned up.`);
+            return;
+        }
+
+        this.connectionClosed = true; // Mark as closed FIRST
+
+        // Close the Gemini session if it exists and is not already closing/closed
+        if (this.session) {
+            try {
+                this.session.close();
+                Log.log(`${this.name}: Gemini session close requested.`);
+            } catch (e) {
+                Log.warn(`${this.name}: Error trying to close Gemini session during cleanup: ${e.message}`);
+            } finally {
+                this.session = null; // Clear the session reference
+            }
+        }
+
+        // Clear queues and reset state
+        this.audioQueue = [];
+        this.responseQueue = [];
+        this.isPlaying = false;
+
+        // Stop any potentially active speaker instance immediately
+        // Note: This might be redundant if cleanupAndProceed handles it, but good for forceful cleanup
+        // It requires tracking the currentSpeaker instance at the helper level if needed here.
+        // For now, rely on cleanupAndProceed triggered by 'close'/'error' or session closure.
+
+        this.client = null; // Clear client reference if desired (or keep for potential reconnect)
+
+        // Notify the frontend module that the chat has ended
+        this.sendSocketNotification("CHAT_ENDED", reason);
+        Log.log(`${this.name}: Cleanup complete.`);
+    },
+
+    // Handle socket notifications from the module frontend
+    socketNotificationReceived: function(notification, payload) {
+        Log.log(this.name + " received a socket notification: " + notification + " - Payload: ", payload);
+
+        if (notification === "SET_CONFIG") {
+            if (googleGenaiError || speakerError) {
+                this.sendSocketNotification("ERROR", "Dependencies failed to load. Cannot operate.");
+                return;
+            }
+            this.config = payload;
+            Log.log(this.name + ": Configuration received.");
+            // Don't start automatically, wait for START_CHAT
+            return; // Explicit return
+        }
+
+        // Guard against actions if config is not set or dependencies failed
+        if (!this.config || googleGenaiError || speakerError) {
+            Log.error(this.name + ": Cannot process notification '" + notification + "' without config or due to load errors.");
+            if (!this.config) this.sendSocketNotification("ERROR", "Module not configured yet.");
+            return;
+        }
+
+        switch (notification) {
+            case "START_CHAT":
+                this.startChatSession(payload); // Payload might be an initial prompt
+                break;
+            case "SEND_TEXT":
+                this.sendTextToGemini(payload); // Payload is the text to send
+                break;
+            case "STOP_CHAT":
+                this.cleanupSession('user requested stop');
+                break;
+            default:
+                Log.warn(this.name + ": Received unknown socket notification: " + notification);
+        }
+    },
+
+    // Override stop method.
+    stop: function() {
+        Log.log("Stopping node helper for: " + this.name);
+        this.cleanupSession('module stopping');
+    }
 });

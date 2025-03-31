@@ -23,7 +23,7 @@ module.exports = NodeHelper.create({
         }
     },
 
-    initializeLiveGenAPI: function(apiKey) {
+    async initializeLiveGenAPI(apiKey) {
         if( !this.liveSession ) {
             this.initializeGenAI(apiKey);
 

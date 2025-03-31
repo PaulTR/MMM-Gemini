@@ -339,7 +339,7 @@ module.exports = NodeHelper.create({
                                 }
                             },
                         },
-                        config: { responseModalities: [Modality.AUDIO] }, // Request only audio
+                        config: { responseModalities: [Modality.TEXT] }, // Request only audio
                     });
                 } catch (connectError) {
                     console.error("NodeHelper: Error connecting to Live API:", connectError);

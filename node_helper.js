@@ -165,10 +165,12 @@ module.exports = NodeHelper.create({
     async socketNotificationReceived(notification, payload) {
 
         if( notification === "SEND_AUDIO" ) {
+            const audiodata = payload.audio
+
             const audioPart = {
               inlineData: {
                 mimeType: 'audio/wav',
-                data: payload.audio,
+                data: audiodata,
               },
             };
             const prompt = `Please provide a transcript of this audio. Language is in English. Only return the words spoken in the audio, no background noises or other sounds. Do not provide a preamble or any other text than the transcribed content.`;
@@ -177,7 +179,7 @@ module.exports = NodeHelper.create({
                 model: 'gemini-2.0-flash-exp',
                 contents: [{
                   parts: [
-                    prompt,
+                    text: prompt,
                     audioPart,
                   ]
                 }],

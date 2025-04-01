@@ -36,7 +36,10 @@ module.exports = NodeHelper.create({
                     },
                     onmessage: (message) => {
                         console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
-                        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: `${message.serverContent.modelTurn.parts[0].text}`})
+                        const text = message?.serverContent?.modelTurn?.parts?.[0]?.text;
+                        if(text) {
+                            this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: `${message.serverContent.modelTurn.parts[0].text}`})
+                        }
                     },
                     onerror: (e) => {
                         console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object

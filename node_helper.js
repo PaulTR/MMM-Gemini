@@ -171,18 +171,18 @@ module.exports = NodeHelper.create({
                 data: payload.audio,
               },
             };
-            // const prompt = `Please provide a transcript of this audio. Language is in English. Only return the words spoken in the audio, no background noises or other sounds. Do not provide a preamble or any other text than the transcribed content.`
-            // const response = await this.genAI.models.generateContent({
-            //     model: 'gemini-2.0-flash-exp',
-            //     contents: [{
-            //         parts: [
-            //             prompt,
-            //             audioPart,
-            //         ]
-            //     }],
-            // })
+            const prompt = `Please provide a transcript of this audio. Language is in English. Only return the words spoken in the audio, no background noises or other sounds. Do not provide a preamble or any other text than the transcribed content.`
+            const response = await this.genAI.models.generateContent({
+                model: 'gemini-2.0-flash-exp',
+                contents: [{
+                    parts: [
+                        prompt,
+                        audioPart,
+                    ]
+                }],
+            })
 
-            // console.log(`contents: ` + response.text)
+            console.log(`contents: ` + response.text)
         }
 
         if( notification === "START_CHAT" ) {

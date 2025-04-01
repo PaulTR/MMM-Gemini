@@ -163,6 +163,11 @@ module.exports = NodeHelper.create({
 
     async socketNotificationReceived(notification, payload) {
 
+        if( notification === "SEND_AUDIO" ) {
+            const audio = payload.audio
+            console.log("audio: " + audio)
+        }
+
         if( notification === "START_CHAT" ) {
             const apiKey = payload.apikey
             await this.initializeLiveGenAPI(apiKey)

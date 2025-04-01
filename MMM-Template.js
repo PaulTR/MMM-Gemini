@@ -15,7 +15,8 @@ Module.register("MMM-Template", {
     // setInterval(() => this.generateImage(), 30000)
     await this.startChat()
 
-    setInterval(() => this.sendText(), 20000)
+    // setInterval(() => this.sendText(), 20000)
+    setInterval(() => this.sendAudio(), 10000); // Added
   },
 
   /**
@@ -41,7 +42,7 @@ Module.register("MMM-Template", {
       this.templateContent = this.exampleContent
       this.updateDom()
     }
-    
+
     if (notification === "NOTIFICATION_GENERATE_IMAGE") {
         this.templateContent = `<img src='${payload.filename}' width='600' height='600' alt='test'>`
         this.updateDom();
@@ -76,21 +77,75 @@ Module.register("MMM-Template", {
   },
 
   sendText: async function() {
-    this.sendSocketNotification("SEND_TEXT", { apikey: `${this.config.apikey}`, text: `Tell me a joke about a magic mirror`})
+      this.templateContent = `<svg width="200" height="200"><circle cx="100" cy="100" r="80" fill="red" /></svg>`;
+      this.updateDom();
+      this.sendSocketNotification("SEND_TEXT", { apikey: `${this.config.apikey}`, text: `Tell me a joke about a magic mirror`});
+
+  },
+
+  sendAudio: async function() {
+    // Update templateContent with red circle SVG
+    this.templateContent = `<svg width="200" height="200"><circle cx="100" cy="100" r="80" fill="red" /></svg>`;
+    this.updateDom();
+
+    try {
+      // Record audio for 3 seconds (adjust as needed)
+      const audioData = await this.recordAudio(3000);
+
+      // Convert audio data to base64 encoded string
+      const base64Audio = Buffer.from(audioData).toString('base64');
+
+      // Send audio to node helper
+      this.sendSocketNotification("SEND_AUDIO", {
+        apikey: this.apikey,
+        audio: base64Audio
+      });
+    } catch (error) {
+      console.error("Error sending audio:", error);
+      this.templateContent = "Error recording/sending audio.";
+      this.updateDom();
+    }
+  },
+
+
+  recordAudio: function(duration) {
+    return new Promise((resolve, reject) => {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          const mediaRecorder = new MediaRecorder(stream);
+          const audioChunks = [];
+
+          mediaRecorder.addEventListener("dataavailable", event => {
+            audioChunks.push(event.data);
+          });
+
+          mediaRecorder.addEventListener("stop", () => {
+            const audioBlob = new Blob(audioChunks);
+            const fileReader = new FileReader();
+
+            fileReader.onloadend = () => {
+              resolve(fileReader.result); // Resolve with ArrayBuffer
+            };
+
+            fileReader.onerror = () => {
+              reject(new Error("Error reading audio data"));
+            };
+
+            fileReader.readAsArrayBuffer(audioBlob); // Read as ArrayBuffer
+            stream.getTracks().forEach(track => track.stop()); // Stop all tracks
+          });
+
+          mediaRecorder.start();
+
+          setTimeout(() => {
+            mediaRecorder.stop();
+          }, duration);
+        })
+        .catch(error => {
+          console.error("Error accessing microphone:", error);
+          reject(error);
+        });
+    });
   }
-})
-
-
-
-  // /**
-  //  * This is the place to receive notifications from other modules or the system.
-  //  *
-  //  * @param {string} notification The notification ID, it is preferred that it prefixes your module name
-  //  * @param {number} payload the payload type.
-  //  */
-  // notificationReceived(notification, payload) {
-  //   if (notification === "TEMPLATE_RANDOM_TEXT") {
-  //     this.templateContent = `${this.config.exampleContent} ${payload}`
-  //     this.updateDom()
-  //   }
-  // }
+});

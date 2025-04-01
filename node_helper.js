@@ -179,8 +179,9 @@ module.exports = NodeHelper.create({
                 model: 'gemini-2.0-flash-exp',
                 contents: [{
                   parts: [
-                    text: prompt,
+                    { text: prompt,
                     audioPart,
+                    }
                   ]
                 }],
               });

@@ -7,6 +7,7 @@ Module.register("MMM-Template", {
   /**
    * Pseudo-constructor for our module. Initialize stuff here.
    */
+  
   async start() {
     this.templateContent = this.config.exampleContent
     this.apikey = this.config.apikey

@@ -175,7 +175,7 @@ module.exports = NodeHelper.create({
                 },
             };
 
-            const prompt = `Please provide a transcript of this audio. Language is in English. Only return the words spoken in the audio, no background noises or other sounds. Do not provide a preamble or any other text than the transcribed content.`;
+            const prompt = `Please provide a transcript of what is said in this audio data that I am sending. Language is in English. Please only include what was said without any additional text.`;
 
             try {
                 const response = await this.genAI.models.generateContent({

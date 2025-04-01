@@ -15,9 +15,7 @@ Module.register("MMM-Template", {
     // setInterval(() => this.generateImage(), 30000)
     await this.startChat()
 
-
     setInterval(() => this.sendText(), 20000)
-
   },
 
   /**

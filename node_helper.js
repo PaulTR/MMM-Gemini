@@ -47,7 +47,7 @@ module.exports = NodeHelper.create({
                         console.log('NodeHelper: Live Connection OPENED.');
                     },
                     onmessage: (message) => {
-                         console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
+                         // console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
                          const parts = message?.serverContent?.modelTurn?.parts;
 
                          if (parts && Array.isArray(parts)) {
@@ -234,7 +234,7 @@ module.exports = NodeHelper.create({
 
                 const imageBytes = response?.generatedImages?.[0]?.image?.imageBytes;
 
-                console.debug("Image Bytes (base64):", imageBytes);
+                // console.debug("Image Bytes (base64):", imageBytes);
 
                 if (imageBytes) {
                     const buffer = Buffer.from(imageBytes, 'base64');

@@ -14,7 +14,7 @@ Module.register("MMM-Template", {
     // set timeout for next random text
     // setInterval(() => this.generateImage(), 30000)
 
-    // setInterval(() => this.sendText(), 10000)
+    setInterval(() => this.sendText(), 10000)
 
   },
 

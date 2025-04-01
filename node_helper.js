@@ -36,6 +36,7 @@ module.exports = NodeHelper.create({
                     },
                     onmessage: (message) => {
                         console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
+                        this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: `${message.serverContent.modelTurn.parts[0].text}`})
                     },
                     onerror: (e) => {
                         console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object
@@ -59,6 +60,7 @@ module.exports = NodeHelper.create({
                 const inputText = payload.text
                 console.log('NodeHelper: Send text: ' + inputText)
                 this.liveSession.sendClientContent({ turns: 'tell me a story about a magic mirror', turnComplete: true })
+                this.sendSocketNotification("NOTIFICATION_CLEAR");
             }
         }
 

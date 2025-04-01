@@ -1,7 +1,7 @@
 Module.register("MMM-Template", {
 
   defaults: {
-    exampleContent: ""
+    exampleContent: "",
   },
 
   /**
@@ -30,10 +30,18 @@ Module.register("MMM-Template", {
       this.templateContent = `${this.config.apikey} ${payload.text}`
       this.updateDom()
     }
-    if( notification === "NOTIFICATION_GENERATE_TEXT" ) {
-      this.templateContent = `${payload.text}`
+    if( notification === "NOTIFICATION_CLEAR" ) {
+      this.exampleContent = ""
+      this.templateContent = ""
       this.updateDom()
     }
+
+    if( notification === "NOTIFICATION_GENERATE_TEXT" ) {
+      this.exampleContent += `${payload.text}`
+      this.templateContent = this.exampleContent
+      this.updateDom()
+    }
+    
     if (notification === "NOTIFICATION_GENERATE_IMAGE") {
         this.templateContent = `<img src='${payload.filename}' width='600' height='600' alt='test'>`
         this.updateDom();

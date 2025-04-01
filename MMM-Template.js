@@ -15,8 +15,6 @@ Module.register("MMM-Template", {
         // setInterval(() => this.generateImage(), 30000)
         await this.startChat()
 
-
-        setInterval(() => this.sendText(), 20000)
         setInterval(() => this.sendAudio(), 20000); // Added
     },
 
@@ -78,7 +76,7 @@ Module.register("MMM-Template", {
     },
 
     sendText: async function () {
-        this.templateContent = `<svg width="200" height="200"><circle cx="100" cy="100" r="80" fill="red" /></svg>`;
+        this.templateContent = ``;
         this.updateDom();
         this.sendSocketNotification("SEND_TEXT", {
             apikey: `${this.config.apikey}`,

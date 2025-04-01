@@ -26,7 +26,7 @@ Module.register("MMM-Template", {
      * @param {string} notification - The notification identifier.
      * @param {any} payload - The payload data`returned by the node helper.
      */
-    socketNotificationReceived: function (notification, payload) {
+    async socketNotificationReceived: function (notification, payload) {
         if (notification === "EXAMPLE_NOTIFICATION") {
             this.templateContent = `${this.config.apikey} ${payload.text}`
             this.updateDom()
@@ -46,6 +46,15 @@ Module.register("MMM-Template", {
         if (notification === "NOTIFICATION_GENERATE_IMAGE") {
             this.templateContent = `<img src='${payload.filename}' width='600' height='600' alt='test'>`
             this.updateDom();
+        }
+
+        if( notification === "NOTIFICATION_AUDIO_TRANSCRIBED" ) {
+          this.templateContent = ``;
+          this.updateDom();
+          this.sendSocketNotification("SEND_TEXT", {
+            apikey: `${this.config.apikey}`,
+            text: `${payload.text}`
+          });
         }
     },
 
@@ -83,7 +92,6 @@ Module.register("MMM-Template", {
             apikey: `${this.config.apikey}`,
             text: `Tell me a joke about a magic mirror`
         });
-
     },
 
     sendAudio: async function () {

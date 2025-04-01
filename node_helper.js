@@ -166,7 +166,7 @@ module.exports = NodeHelper.create({
 
         if( notification === "SEND_AUDIO" ) {
             const audiodata = payload.audio;
-            console.log(audiodata);
+            // console.log(audiodata);
 
             const audioPart = {
                 inlineData: {
@@ -189,6 +189,7 @@ module.exports = NodeHelper.create({
                 });
 
                 console.log(`contents: ` + response.text);
+                this.sendSocketNotification("NOTIFICATION_AUDIO_TRANSCRIBED", { text: response.text})
             } catch (error) {
                 console.error("Error generating content:", error);
             }

@@ -165,7 +165,7 @@ module.exports = NodeHelper.create({
     async socketNotificationReceived(notification, payload) {
 
         if( notification === "SEND_AUDIO" ) {
-            audioPart: Part = {
+            var audioPart: Part = {
               inlineData: {
                 mimeType: 'audio/wav',  // Replace with the actual mimeType if different.
                 data: payload.audio,

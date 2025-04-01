@@ -166,7 +166,7 @@ module.exports = NodeHelper.create({
 
         if( notification === "SEND_AUDIO" ) {
             const audio = payload.audio
-            console.log("audio: " + audio)
+            // TODO send audio to gemini to do speech to text
         }
 
         if( notification === "START_CHAT" ) {

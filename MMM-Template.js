@@ -103,6 +103,8 @@ Module.register("MMM-Template", {
                 apikey: this.apikey,
                 audio: base64Audio
             });
+            this.templateContent = ''
+            this.updateDom()
         } catch (error) {
             console.error("Error sending audio:", error);
             this.templateContent = "Error recording/sending audio.";

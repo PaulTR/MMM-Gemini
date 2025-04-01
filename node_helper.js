@@ -14,7 +14,7 @@ module.exports = NodeHelper.create({
     SAMPLE_RATE: 24000, // Assuming a sample rate of 24000 Hz; adjust if necessary
     CHANNELS: 1,       // Assuming mono audio; adjust if necessary
     BIT_DEPTH: 16,      // Assuming 16-bit audio; adjust if necessary
-    INTER_CHUNK_DELAY_MS: 250, // Delay between audio chunks
+    INTER_CHUNK_DELAY_MS: 0, // Delay between audio chunks
 
 
     // --- Audio Playback State ---

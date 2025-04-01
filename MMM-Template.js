@@ -15,7 +15,8 @@ Module.register("MMM-Template", {
         // setInterval(() => this.generateImage(), 30000)
         await this.startChat()
 
-        // setInterval(() => this.sendText(), 20000)
+
+        setInterval(() => this.sendText(), 20000)
         setInterval(() => this.sendAudio(), 20000); // Added
     },
 
@@ -77,7 +78,7 @@ Module.register("MMM-Template", {
     },
 
     sendText: async function () {
-        this.templateContent = ``;
+        this.templateContent = `<svg width="200" height="200"><circle cx="100" cy="100" r="80" fill="red" /></svg>`;
         this.updateDom();
         this.sendSocketNotification("SEND_TEXT", {
             apikey: `${this.config.apikey}`,
@@ -105,7 +106,7 @@ Module.register("MMM-Template", {
             });
         } catch (error) {
             console.error("Error sending audio:", error);
-            this.templateContent = "Error recording/sending audio: " + error;
+            this.templateContent = "Error recording/sending audio.";
             this.updateDom();
         }
     },
@@ -113,89 +114,47 @@ Module.register("MMM-Template", {
 
     recordAudio: function (duration) {
         return new Promise((resolve, reject) => {
-            // Check if running in Electron environment and use node-record-lpcm16 if so
-            if (typeof window === 'undefined' || typeof window.navigator === 'undefined') {
-                console.log("Running in non-browser environment, using node-record-lpcm16");
-                const recorder = require('node-record-lpcm16');  // Require here to avoid browser errors
-                const fs = require('fs');
+            console.log("Running in non-browser environment, using node-record-lpcm16");
+            const recorder = require('node-record-lpcm16');  // Require here to avoid browser errors
+            const fs = require('fs');
 
-                const tmpFile = 'temp_recording.wav';  // Temporary file to store audio
-                const file = fs.createWriteStream(tmpFile, { encoding: 'binary' });
+            const tmpFile = 'temp_recording.wav';  // Temporary file to store audio
+            const file = fs.createWriteStream(tmpFile, { encoding: 'binary' });
 
 
-                const recording = recorder.record({
-                    sampleRate: 24000, // Adjust as needed
-                    channels: 1,       // Adjust as needed
-                    audioType: 'wav',  // Force wav since we handle conversion
-                    endOnSilence: false,
-                    threshold: 0,
-                    verbose: false,
+            const recording = recorder.record({
+                sampleRate: 24000, // Adjust as needed
+                channels: 1,       // Adjust as needed
+                audioType: 'wav',  // Force wav since we handle conversion
+                endOnSilence: false,
+                threshold: 0,
+                verbose: false,
+            });
+
+            recording.stream().pipe(file);
+
+            setTimeout(() => {
+                recording.stop();
+
+                file.on('finish', () => {
+                    // Read the file and convert to ArrayBuffer
+                    fs.readFile(tmpFile, (err, data) => {
+                        if (err) {
+                            console.error("Error reading recorded file:", err);
+                            reject(err);
+                            return;
+                        }
+                        fs.unlink(tmpFile, (unlinkErr) => { // Clean up temp file
+                            if (unlinkErr) {
+                                console.warn("Warning: Could not delete temporary file:", unlinkErr);
+                            }
+                        });
+                        resolve(data.buffer);  // Resolve with ArrayBuffer
+                    });
+
                 });
 
-                recording.stream().pipe(file);
-
-                setTimeout(() => {
-                    recording.stop();
-
-                    file.on('finish', () => {
-                        // Read the file and convert to ArrayBuffer
-                        fs.readFile(tmpFile, (err, data) => {
-                            if (err) {
-                                console.error("Error reading recorded file:", err);
-                                reject(err);
-                                return;
-                            }
-                            fs.unlink(tmpFile, (unlinkErr) => { // Clean up temp file
-                                if (unlinkErr) {
-                                    console.warn("Warning: Could not delete temporary file:", unlinkErr);
-                                }
-                            });
-                            resolve(data.buffer);  // Resolve with ArrayBuffer
-                        });
-
-                    });
-
-                }, duration); // Record for specified duration
-            } else {
-                // Running in a browser environment
-                console.log("Running in browser environment, using MediaRecorder API");
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                navigator.mediaDevices.getUserMedia({ audio: true })
-                    .then(stream => {
-                        const mediaRecorder = new MediaRecorder(stream);
-                        const audioChunks = [];
-
-                        mediaRecorder.addEventListener("dataavailable", event => {
-                            audioChunks.push(event.data);
-                        });
-
-                        mediaRecorder.addEventListener("stop", () => {
-                            const audioBlob = new Blob(audioChunks);
-                            const fileReader = new FileReader();
-
-                            fileReader.onloadend = () => {
-                                resolve(fileReader.result); // Resolve with ArrayBuffer
-                            };
-
-                            fileReader.onerror = () => {
-                                reject(new Error("Error reading audio data"));
-                            };
-
-                            fileReader.readAsArrayBuffer(audioBlob); // Read as ArrayBuffer
-                            stream.getTracks().forEach(track => track.stop()); // Stop all tracks
-                        });
-
-                        mediaRecorder.start();
-
-                        setTimeout(() => {
-                            mediaRecorder.stop();
-                        }, duration);
-                    })
-                    .catch(error => {
-                        console.error("Error accessing microphone:", error);
-                        reject(error);
-                    });
-            }
+            }, duration); // Record for specified duration
         });
     }
 });

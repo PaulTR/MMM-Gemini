@@ -166,7 +166,7 @@ module.exports = NodeHelper.create({
 
         if( notification === "SEND_AUDIO" ) {
             const audiodata = payload.audio
-
+            console.log(audiodata)
             const audioPart = {
               inlineData: {
                 mimeType: 'audio/wav',

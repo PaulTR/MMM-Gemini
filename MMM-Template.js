@@ -13,6 +13,7 @@ Module.register("MMM-Template", {
 
     // set timeout for next random text
     // setInterval(() => this.generateImage(), 30000)
+    await this.startChat()
 
     setInterval(() => this.sendText(), 10000)
 

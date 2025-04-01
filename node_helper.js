@@ -56,9 +56,12 @@ module.exports = NodeHelper.create({
 
     async socketNotificationReceived(notification, payload) {
 
-        if( notification === "SEND_TEXT") {
+        if( notification === "START_CHAT" ) {
             const apiKey = payload.apikey
-            this.initializeLiveGenAPI(apiKey)
+            await this.initializeLiveGenAPI(apiKey)
+        }
+
+        if( notification === "SEND_TEXT") {
             if( this.liveSession ) {
                 const inputText = payload.text
                 console.log('NodeHelper: Send text: ' + inputText)

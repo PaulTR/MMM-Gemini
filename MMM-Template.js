@@ -77,7 +77,7 @@ Module.register("MMM-Template", {
     },
 
     sendText: async function () {
-        this.templateContent = `<svg width="200" height="200"><circle cx="100" cy="100" r="80" fill="red" /></svg>`;
+        this.templateContent = ``;
         this.updateDom();
         this.sendSocketNotification("SEND_TEXT", {
             apikey: `${this.config.apikey}`,
@@ -105,7 +105,7 @@ Module.register("MMM-Template", {
             });
         } catch (error) {
             console.error("Error sending audio:", error);
-            this.templateContent = "Error recording/sending audio.";
+            this.templateContent = "Error recording/sending audio: " + error;
             this.updateDom();
         }
     },

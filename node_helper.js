@@ -165,30 +165,32 @@ module.exports = NodeHelper.create({
     async socketNotificationReceived(notification, payload) {
 
         if( notification === "SEND_AUDIO" ) {
-            const audiodata = payload.audio
-            console.log(audiodata)
-            const audioPart = {
-              inlineData: {
-                mimeType: 'audio/wav',
-                data: `'${audiodata}'`,
-              },
-            };
-            const prompt = `Please provide a transcript of this audio. Language is in English. Only return the words spoken in the audio, no background noises or other sounds. Do not provide a preamble or any other text than the transcribed content.`;
-            try {
-              const response = await this.genAI.models.generateContent({
-                model: 'gemini-2.0-flash-exp',
-                contents: [{
-                  parts: [
-                    { text: prompt,
-                    audioPart,
-                    }
-                  ]
-                }],
-              });
+            const audiodata = payload.audio;
+            console.log(audiodata);
 
-              console.log(`contents: ` + response.text);
+            const audioPart = {
+                inlineData: {
+                    mimeType: 'audio/wav',
+                    data: audiodata,
+                },
+            };
+
+            const prompt = `Please provide a transcript of this audio. Language is in English. Only return the words spoken in the audio, no background noises or other sounds. Do not provide a preamble or any other text than the transcribed content.`;
+
+            try {
+                const response = await this.genAI.models.generateContent({
+                    model: 'gemini-2.0-flash-exp',
+                    contents: [{
+                        parts: [
+                            { text: prompt },  // Explicitly define the prompt as text
+                            audioPart,        // Add the audio part as a separate element
+                        ],
+                    }],
+                });
+
+                console.log(`contents: ` + response.text);
             } catch (error) {
-              console.error("Error generating content:", error);
+                console.error("Error generating content:", error);
             }
         }
 

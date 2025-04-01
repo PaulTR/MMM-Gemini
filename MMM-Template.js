@@ -7,7 +7,7 @@ Module.register("MMM-Template", {
   /**
    * Pseudo-constructor for our module. Initialize stuff here.
    */
-  
+
   async start() {
     this.templateContent = this.config.exampleContent
     this.apikey = this.config.apikey
@@ -102,7 +102,7 @@ Module.register("MMM-Template", {
         audio: base64Audio
       });
     } catch (error) {
-      console.error("Error sending audio:", error);
+      console.log("Error sending audio:", error);
       this.templateContent = "Error recording/sending audio.";
       this.updateDom();
     }

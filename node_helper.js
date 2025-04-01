@@ -2,12 +2,23 @@ const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality, PersonGeneration, SafetyFilterLevel } = require("@google/genai");
 const recorder = require('node-record-lpcm16');
 const fs = require('fs'); // Import the 'fs' module for file system operations in Node.js
-
+const Speaker = require('speaker');
+const { Writable } = require('node:stream');
 
 module.exports = NodeHelper.create({
 
     genAI: null,
     liveSession: null,
+
+    // --- Audio Playback Configuration ---
+    SAMPLE_RATE: 24000, // Assuming a sample rate of 24000 Hz; adjust if necessary
+    CHANNELS: 1,       // Assuming mono audio; adjust if necessary
+    BIT_DEPTH: 16,      // Assuming 16-bit audio; adjust if necessary
+    INTER_CHUNK_DELAY_MS: 250, // Delay between audio chunks
+
+    // --- Audio Playback State ---
+    audioQueue: [],
+    isPlaying: false,
 
     initializeGenAI: function(apiKey) {
         if (!this.genAI) {
@@ -35,24 +46,120 @@ module.exports = NodeHelper.create({
                         console.log('NodeHelper: Live Connection OPENED.');
                     },
                     onmessage: (message) => {
-                        console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
-                        const text = message?.serverContent?.modelTurn?.parts?.[0]?.text;
-                        if(text) {
+                         console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
+                         const parts = message?.serverContent?.modelTurn?.parts;
+
+                         if (parts && Array.isArray(parts)) {
+                            for (const part of parts) {
+                              if (part.inlineData &&
+                                part.inlineData.mimeType === `audio/pcm;rate=${this.SAMPLE_RATE}` &&
+                                part.inlineData.data) {
+                                  this.queueAudioChunk(part.inlineData.data); // Queue audio
+                                }
+                             }
+                           }
+
+
+                         const text = message?.serverContent?.modelTurn?.parts?.[0]?.text;
+                         if(text) {
                             this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: `${message.serverContent.modelTurn.parts[0].text}`})
-                        }
+                         }
                     },
                     onerror: (e) => {
                         console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object
                         console.error('NodeHelper: Live Connection ERROR Message:', e?.message || 'No message');
+                        this.audioQueue = [];
+                        this.isPlaying = false;
                     },
                     onclose: (e) => {
                         console.error('NodeHelper: Live Connection CLOSED Object:', e); // Log the whole object
+                        this.audioQueue = [];
+                        this.isPlaying = false;
                     },
                 },
-                config: { responseModalities: [Modality.TEXT] },
+                config: { responseModalities: [Modality.AUDIO] },
             });
         }
     },
+
+     // --- Audio Playback Handling ---
+     queueAudioChunk: function(base64Data) {
+        if (!base64Data) return;
+        try {
+            const buffer = Buffer.from(base64Data, 'base64');
+            this.audioQueue.push(buffer);
+            // Trigger processing asynchronously. If already playing, it will wait.
+            setImmediate(this.processNextAudioChunk.bind(this));
+        } catch (error) {
+            console.error('\nError decoding base64 audio:', error);
+        }
+    },
+
+    processNextAudioChunk: function() {
+        if (this.isPlaying || this.audioQueue.length === 0) {
+            return;
+        }
+
+        this.isPlaying = true;
+        const buffer = this.audioQueue.shift();
+        let currentSpeaker = null;
+
+        // --- Cleanup Function (Modified for Delay) ---
+        const cleanupAndProceed = (speakerInstance, errorOccurred = false) => {
+            if (!this.isPlaying) { return; } // Already cleaned up or wasn't playing
+
+            this.isPlaying = false; // Release the lock *before* the delay
+
+            if (speakerInstance && !speakerInstance.destroyed) {
+                try { speakerInstance.destroy(); } catch (e) { console.warn("Warning: Error destroying speaker during cleanup:", e.message); }
+            }
+            currentSpeaker = null;
+
+            // *** MODIFIED: Use setTimeout for delay before next chunk ***
+            if (this.INTER_CHUNK_DELAY_MS > 0) {
+                // console.log(`[cleanupAndProceed] Audio finished. Waiting ${INTER_CHUNK_DELAY_MS}ms before next check.`);
+                setTimeout(() => {
+                    // console.log("[cleanupAndProceed] Delay finished. Checking for next chunk.");
+                    this.processNextAudioChunk(); // Check queue after delay
+                }, this.INTER_CHUNK_DELAY_MS);
+            } else {
+                // If delay is 0, behave like setImmediate
+                setImmediate(this.processNextAudioChunk.bind(this));
+            }
+        };
+
+        try {
+            console.log(`\n[Playing audio chunk (${buffer.length} bytes)...]`);
+            currentSpeaker = new Speaker({
+                channels: this.CHANNELS, bitDepth: this.BIT_DEPTH, sampleRate: this.SAMPLE_RATE,
+            });
+
+            currentSpeaker.once('error', (err) => {
+                console.error('\nSpeaker Error:', err.message);
+                cleanupAndProceed(currentSpeaker, true); // Pass speaker instance
+            });
+
+            currentSpeaker.once('close', () => {
+                // console.log('[Audio chunk finished]'); // Optional log
+                cleanupAndProceed(currentSpeaker, false); // Pass speaker instance
+            });
+
+            if (currentSpeaker instanceof Writable && !currentSpeaker.destroyed) {
+                currentSpeaker.write(buffer, (writeErr) => {
+                    if (writeErr && !currentSpeaker.destroyed) { console.error("\nError during speaker.write callback:", writeErr.message); }
+                });
+                currentSpeaker.end();
+            } else {
+                if (!currentSpeaker?.destroyed) console.error("\nError: Speaker instance is not writable or already destroyed before write.");
+                cleanupAndProceed(currentSpeaker, true); // Pass speaker instance
+            }
+
+        } catch (speakerCreationError) {
+            console.error("\nError creating Speaker instance:", speakerCreationError.message);
+            cleanupAndProceed(currentSpeaker, true); // Pass potentially null speaker instance
+        }
+    },
+
 
     async socketNotificationReceived(notification, payload) {
 
@@ -65,7 +172,7 @@ module.exports = NodeHelper.create({
             if( this.liveSession ) {
                 const inputText = payload.text
                 console.log('NodeHelper: Send text: ' + inputText)
-                this.liveSession.sendClientContent({ turns: 'tell me a story about a magic mirror', turnComplete: true })
+                this.liveSession.sendClientContent({ turns: inputText, turnComplete: true })
                 this.sendSocketNotification("NOTIFICATION_CLEAR");
             }
         }

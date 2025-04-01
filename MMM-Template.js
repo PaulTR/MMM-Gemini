@@ -16,7 +16,7 @@ Module.register("MMM-Template", {
     await this.startChat()
 
 
-    setInterval(() => this.sendText(), 10000)
+    setInterval(() => this.sendText(), 20000)
 
   },
 

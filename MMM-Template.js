@@ -26,7 +26,7 @@ Module.register("MMM-Template", {
      * @param {string} notification - The notification identifier.
      * @param {any} payload - The payload data`returned by the node helper.
      */
-    async socketNotificationReceived: function (notification, payload) {
+    socketNotificationReceived: function (notification, payload) {
         if (notification === "EXAMPLE_NOTIFICATION") {
             this.templateContent = `${this.config.apikey} ${payload.text}`
             this.updateDom()
@@ -49,7 +49,7 @@ Module.register("MMM-Template", {
         }
 
         if( notification === "NOTIFICATION_AUDIO_TRANSCRIBED" ) {
-          this.templateContent = ``;
+          this.templateContent = `${payload.text}`
           this.updateDom();
           this.sendSocketNotification("SEND_TEXT", {
             apikey: `${this.config.apikey}`,

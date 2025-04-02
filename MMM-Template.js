@@ -1,5 +1,6 @@
 /* global Module, Log */
 
+
 Module.register("MMM-Template", {
   defaults: {
     // Display content

@@ -20,8 +20,6 @@ module.exports = NodeHelper.create({
     isPlaying: false,
 
     initializeGenAI: function(apiKey) {
-        
-    },
 
     async initializeLiveGenAPI(apiKey) {
         if( !this.liveSession ) {
@@ -146,7 +144,6 @@ module.exports = NodeHelper.create({
             cleanupAndProceed(currentSpeaker, true); // Pass potentially null speaker instance
         }
     },
-
 
     async socketNotificationReceived(notification, payload) {
 

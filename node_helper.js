@@ -83,14 +83,14 @@ module.exports = NodeHelper.create({
         }
     },
 
-    // --- NEW: Audio Handling Logic ---
-
     handleAudioChunk: function(base64Data) {
         if (!base64Data) return;
 
         try {
             const buffer = Buffer.from(base64Data, 'base64');
             this.audioQueue.push(buffer);
+            console.log(`[Audio] Queued chunk. Size: ${buffer.length}. Queue length: ${this.audioQueue.length}`);
+
 
             // Cancel any pending speaker closure because new data arrived
             if (this.speakerTimeout) {
@@ -100,12 +100,15 @@ module.exports = NodeHelper.create({
 
             // If speaker doesn't exist or is closed/destroyed, create a new one
             if (!this.currentSpeaker || this.currentSpeaker.destroyed) {
-                this.createSpeaker();
-            }
-
-            // Start draining the queue if the speaker is ready
-            if (this.currentSpeaker && !this.currentSpeaker.destroyed) {
-                this.drainAudioQueue();
+                 console.log("[Audio] Speaker doesn't exist or destroyed, creating new one.");
+                 this.createSpeaker(); // Creates speaker and might call drainAudioQueue
+                 // No need to call drainAudioQueue here directly, createSpeaker should handle if needed or subsequent writes will
+            } else if (!this.isWaitingForDrain) {
+                 // If speaker exists and we are NOT already waiting for drain, try draining immediately
+                 console.log("[Audio] Speaker exists and not waiting for drain, attempting to drain queue.");
+                 this.drainAudioQueue();
+            } else {
+                 console.log("[Audio] Speaker exists but waiting for drain. Queue will be processed on drain event.");
             }
 
         } catch (error) {
@@ -115,6 +118,10 @@ module.exports = NodeHelper.create({
 
     createSpeaker: function() {
         console.log('[Audio] Creating new Speaker instance.');
+         // Clean up any remnants just in case
+         this.closeSpeaker(true); // Force close any previous instance first
+         this.isWaitingForDrain = false; // Reset flag
+
         try {
             this.currentSpeaker = new Speaker({
                 channels: this.CHANNELS,
@@ -124,109 +131,127 @@ module.exports = NodeHelper.create({
 
             this.currentSpeaker.on('error', (err) => {
                 console.error('Speaker Error:', err.message);
+                this.isWaitingForDrain = false; // Reset flag on error
                 this.closeSpeaker(true); // Close forcefully on error
             });
 
             this.currentSpeaker.on('close', () => {
                 console.log('[Audio] Speaker instance closed.');
-                 // Ensure cleanup, though closeSpeaker should handle it
-                if (this.currentSpeaker && !this.currentSpeaker.destroyed) {
-                     try { this.currentSpeaker.destroy(); } catch(e){}
-                }
+                this.isWaitingForDrain = false; // Reset flag on close
+                // Speaker might already be null via closeSpeaker, but ensure it
                 this.currentSpeaker = null;
             });
 
-             // Handle backpressure: if the speaker buffer is full, wait for 'drain'
-             this.currentSpeaker.on('drain', () => {
-                 console.log('[Audio] Speaker drained, continuing queue.');
-                 this.drainAudioQueue(); // Try to write more data
-             });
-
+            // --- REMOVED PERSISTENT DRAIN LISTENER ---
+            // We will now add it temporarily only when needed in drainAudioQueue
 
         } catch (speakerCreationError) {
             console.error("Error creating Speaker instance:", speakerCreationError.message);
-            this.currentSpeaker = null; // Ensure it's null if creation failed
+            this.currentSpeaker = null;
+            this.isWaitingForDrain = false;
         }
     },
 
     drainAudioQueue: function() {
+        // Prevent re-entry if called while already processing, especially from drain handler
+        // Although isWaitingForDrain check in handleAudioChunk helps, this adds safety
         if (!this.currentSpeaker || this.currentSpeaker.destroyed) {
-            // console.log('[Audio] Drain called but speaker not ready.');
-            return; // Speaker not available
+            console.log('[Audio] drainAudioQueue: Called but speaker not valid.');
+            this.isWaitingForDrain = false; // Ensure flag is reset
+            return;
         }
+        // console.log(`[Audio] drainAudioQueue: Processing. Queue: ${this.audioQueue.length}, WaitingForDrain: ${this.isWaitingForDrain}`);
 
-        // console.log(`[Audio] Draining queue (${this.audioQueue.length} chunks)...`);
 
+        // --- Loop to write as many chunks as possible ---
         while (this.audioQueue.length > 0) {
-            const buffer = this.audioQueue[0]; // Peek at the next chunk
+            const buffer = this.audioQueue[0]; // Peek
 
-            // Write the chunk to the speaker
-            // The 'drain' event will trigger this function again if write returns false
-            if (!this.currentSpeaker.write(buffer)) {
-                 // console.log('[Audio] Speaker buffer full, waiting for drain.');
-                 return; // Kernel buffer is full, wait for 'drain' event
+            // console.log(`[Audio] drainAudioQueue: Attempting write. Chunk size: ${buffer?.length}`);
+            const canWrite = this.currentSpeaker.write(buffer);
+            // console.log(`[Audio] drainAudioQueue: write() returned ${canWrite}`);
+
+
+            if (!canWrite) {
+                console.log('[Audio] drainAudioQueue: write() returned false (buffer full). Waiting for drain.');
+                // Set flag and attach a ONE-TIME drain listener if not already waiting
+                if (!this.isWaitingForDrain) {
+                     this.isWaitingForDrain = true;
+                     this.currentSpeaker.once('drain', () => {
+                         console.log('[Audio] Speaker drained (event received).');
+                         this.isWaitingForDrain = false; // Reset flag *before* calling drain again
+                         this.drainAudioQueue(); // Try draining again now that buffer has space
+                     });
+                } else {
+                     console.log('[Audio] drainAudioQueue: Already waiting for drain event. Doing nothing.');
+                }
+                return; // Exit and wait for the attached 'drain' listener
             }
 
-             // If write succeeded, remove the chunk from the queue
+            // Write succeeded! Remove the chunk from the queue.
             this.audioQueue.shift();
-            // console.log(`[Audio] Wrote chunk (${buffer.length} bytes), ${this.audioQueue.length} remaining.`);
+            console.log(`[Audio] drainAudioQueue: Wrote and shifted chunk. Queue length now: ${this.audioQueue.length}`);
+            // Continue loop to write next chunk immediately if possible
         }
 
-        // If the queue is empty, schedule the speaker to close after a timeout
+        // --- If loop finishes and queue is empty ---
         if (this.audioQueue.length === 0) {
-             // console.log(`[Audio] Queue empty, scheduling speaker closure in ${this.SPEAKER_CLOSE_TIMEOUT_MS}ms.`);
-             if (this.speakerTimeout) clearTimeout(this.speakerTimeout); // Clear existing timeout
-             this.speakerTimeout = setTimeout(() => {
-                 console.log('[Audio] Timeout reached, closing speaker.');
-                 this.closeSpeaker();
-             }, this.SPEAKER_CLOSE_TIMEOUT_MS);
-         }
+            console.log(`[Audio] drainAudioQueue: Queue empty. Scheduling speaker closure in ${this.SPEAKER_CLOSE_TIMEOUT_MS}ms.`);
+            if (this.speakerTimeout) clearTimeout(this.speakerTimeout); // Clear existing timeout
+            this.speakerTimeout = setTimeout(() => {
+                console.log('[Audio] Timeout reached, closing speaker.');
+                this.closeSpeaker();
+            }, this.SPEAKER_CLOSE_TIMEOUT_MS);
+        }
     },
 
     closeSpeaker: function(force = false) {
-        console.log(`[Audio] Attempting to close speaker (Force: ${force}).`);
+        console.log(`[Audio] Attempting to close speaker (Force: ${force}). Current speaker valid: ${!!this.currentSpeaker && !this.currentSpeaker.destroyed}`);
         if (this.speakerTimeout) {
             clearTimeout(this.speakerTimeout);
             this.speakerTimeout = null;
         }
+        this.isWaitingForDrain = false; // Reset drain flag when closing
 
-        // Drain remaining data before closing unless forced
-        if (!force && this.audioQueue.length > 0) {
-             console.warn('[Audio] closeSpeaker called with data still in queue. Draining first.');
-             this.drainAudioQueue(); // Try to drain again
-             // Reschedule closure check slightly later
-             this.speakerTimeout = setTimeout(() => this.closeSpeaker(), 100);
-             return;
-        }
+        const speakerToClose = this.currentSpeaker; // Keep reference
+        this.currentSpeaker = null; // Set to null immediately to prevent new writes
 
-
-        if (this.currentSpeaker && !this.currentSpeaker.destroyed) {
-            try {
-                console.log('[Audio] Ending and destroying speaker instance.');
-                this.currentSpeaker.end(() => { // Call end to flush buffers before destroying
-                   console.log('[Audio] Speaker stream ended callback.');
-                    // Destruction often happens implicitly on 'close', but ensure it
-                    if(this.currentSpeaker && !this.currentSpeaker.destroyed) {
-                       try { this.currentSpeaker.destroy(); } catch(e){ console.warn("Warn: Error during explicit destroy:", e.message);}
-                    }
-                   this.currentSpeaker = null;
-                });
-
-
-            } catch (err) {
-                console.error('Error ending/destroying speaker:', err.message);
-                 // Force destroy if ending failed
-                 try { if(this.currentSpeaker && !this.currentSpeaker.destroyed) this.currentSpeaker.destroy(); } catch (e) {}
-                this.currentSpeaker = null;
+        if (speakerToClose && !speakerToClose.destroyed) {
+            if (!force && this.audioQueue.length > 0) {
+                 console.warn('[Audio] closeSpeaker called with data still in queue. This data will be lost.');
+                 // Force drain is too complex here, better to just clear
+                 this.audioQueue = []; // Clear queue if closing non-forcefully but queue remains
             }
-        } else {
-             // console.log('[Audio] Speaker already null or destroyed.');
-            this.currentSpeaker = null; // Ensure it's null
-        }
 
-        // Clear the queue if we are forcefully closing or if it should be empty anyway
-        if (force) {
-            this.audioQueue = [];
+             if (force) {
+                 this.audioQueue = []; // Clear queue if forcing
+                 try {
+                     console.log('[Audio] Force closing: Destroying speaker.');
+                     speakerToClose.destroy();
+                 } catch (err) {
+                     console.error('Error destroying speaker during force close:', err.message);
+                 }
+             } else {
+                 try {
+                     console.log('[Audio] Graceful closing: Ending speaker stream.');
+                     speakerToClose.end(() => { // Call end to flush buffers if possible
+                         console.log('[Audio] Speaker stream ended callback.');
+                          // Destroy might happen automatically on 'close', but ensure it if 'end' finishes first
+                         if (!speakerToClose.destroyed) {
+                             try { speakerToClose.destroy(); } catch (e) {}
+                         }
+                     });
+                 } catch (err) {
+                     console.error('Error ending speaker during graceful close:', err.message);
+                     // Fallback to destroy if 'end' fails
+                      if (!speakerToClose.destroyed) {
+                          try { speakerToClose.destroy(); } catch (e) {}
+                      }
+                 }
+             }
+        } else {
+            // console.log('[Audio] closeSpeaker: Speaker already null or destroyed.');
+            if(force) this.audioQueue = []; // Clear queue if forcing even if speaker was already gone
         }
     },
 

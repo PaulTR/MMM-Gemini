@@ -57,13 +57,14 @@ module.exports = NodeHelper.create({
                     apiKey: this.apiKey,
                     vertexai: false,
                     systemInstruction: "You are a magical mirror that is friendly, whimsical, and fun. Respond as the mirror to user requests. Have fun with it.",
+                    httpOptions: { 'apiVersion': 'v1alpha' },
                 });
                  console.log(`NodeHelper (${this.name}): GoogleGenAI instance created.`);
             }
 
             console.log(`NodeHelper (${this.name}): Attempting to establish Live Connection...`);
             this.liveSession = await this.genAI.live.connect({
-                model: 'gemini-1.5-flash-latest', // Adjust model if needed
+                model: 'gemini-2.0-flash-exp', // Adjust model if needed
                 callbacks: {
                     onopen: () => {
                         console.log(`NodeHelper (${this.name}): Live Connection OPENED.`);

@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@google/genai": "^0.4.0",
+    "@google/generative-ai": "^0.24.0",
     "node-record-lpcm16": "^1.0.1",
     "speaker": "^0.5.5"
   }

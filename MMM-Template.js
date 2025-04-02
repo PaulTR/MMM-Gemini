@@ -53,58 +53,47 @@ Module.register("MMM-Template", {
 
     recordAudio: function (duration) {
         return new Promise((resolve, reject) => {
-            if (typeof require === 'function' && typeof process === 'object') {
-                console.log("MMM-Template: Running in Node.js environment, using node-record-lpcm16 for raw PCM.");
-                Log.info("MMM-Template: Using node-record-lpcm16 for raw PCM recording."); // Use MagicMirror logger
+            console.warn("MMM-Template: Running in browser environment. MediaRecorder will be used, format might not be raw PCM 16kHz/16bit.");
+                Log.warn("MMM-Template: Running in browser environment. MediaRecorder will be used, format might not be raw PCM 16kHz/16bit.");
 
-                try {
-                    const recorder = require('node-record-lpcm16');
-
-                    const recording = recorder.record({
-                        sampleRate: 16000,   // Set desired sample rate
-                        channels: 1,         // Mono audio
-                        encoding: 'linear', // Specify linear PCM encoding
-                        endian: 'little',   // Specify little-endian
-                        bitDepth: 16,       // Specify 16-bit depth
-                        audioType: 'raw',    // IMPORTANT: Set audio type to raw
-                        silence: '5.0',      // Keep silence detection if desired, adjust seconds
-                        threshold: 0.5,      // Adjust silence threshold if needed
-                        verbose: false       // Set to true for debugging recorder issues
-                    });
-
-                    const stream = recording.stream();
-
-                    stream.on('data', (chunk) => {
-                      this.sendSocketNotification("SEND_AUDIO", {
-                          chunk: chunk,
-                      });
-                    });
-
-                    stream.on('error', (err) => {
-                        console.error("MMM-Template: Recording stream error:", err);
-                        Log.error("MMM-Template: Recording stream error: " + err);
-                        // Ensure recording stops on error to prevent hanging
-                        recording.stop();
-                        reject(new Error("Recording stream error: " + err));
-                    });
-
-                    setTimeout(() => {
-                        console.log("MMM-Template: Stopping recording...");
-                        Log.info("MMM-Template: Stopping recording after timeout.");
-                        recording.stop();
-                    }, duration);
-
-                } catch (err) {
-                     console.error("MMM-Template: Failed to initialize recorder:", err);
-                     Log.error("MMM-Template: Failed to initialize recorder: " + err);
-                     reject(new Error("Failed to initialize audio recorder: " + err));
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    return reject(new Error("MMM-Template: MediaDevices API not supported in this browser."));
                 }
 
-            }
-            else {
-            this.templateContent = 'not recording'
-            this.updateDom()
-            }
+                navigator.mediaDevices.getUserMedia({ audio: {} })
+                    .then(stream => {
+                        const options = {}; // Use browser default for better compatibility
+                        let mediaRecorder;
+                        try {
+                           mediaRecorder = new MediaRecorder(stream, options);
+                        } catch (e) {
+                           console.warn("MMM-Template: Could not create MediaRecorder with options, trying without:", e);
+                           Log.warn("MMM-Template: Could not create MediaRecorder with options, trying without: " + e);
+                           mediaRecorder = new MediaRecorder(stream); // Fallback
+                        }
+
+
+                        mediaRecorder.addEventListener("dataavailable", event => {
+                            this.sendSocketNotification("SEND_AUDIO", chunk: event)
+                        });
+
+                         mediaRecorder.addEventListener("error", (event) => {
+                            reject(new Error("MMM-Template: MediaRecorder error: " + event.error));
+                         });
+
+                        mediaRecorder.start();
+
+                        setTimeout(() => {
+                            if (mediaRecorder.state === "recording") {
+                                mediaRecorder.stop();
+                            }
+                        }, duration);
+                    })
+                    .catch(error => {
+                        console.error("MMM-Template: Error accessing microphone:", error);
+                        Log.error("MMM-Template: Error accessing microphone: " + error);
+                        reject(error);
+                    });
         });
     }
 });

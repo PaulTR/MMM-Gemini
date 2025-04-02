@@ -16,7 +16,7 @@ Module.register("MMM-Template", {
         await this.startChat()
 
         // setInterval(() => this.sendText(), 20000)
-        setInterval(() => this.sendAudio(), 5000); // Added
+        setInterval(() => this.sendAudio(), 20000); // Added
     },
 
     /**

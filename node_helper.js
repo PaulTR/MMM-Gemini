@@ -44,7 +44,7 @@ module.exports = NodeHelper.create({
             console.log("NodeHelper: Attempting to establish Live Connection...");
             this.liveSession = await this.genAI.live.connect({
                 // model: 'gemini-2.0-flash-exp', // This specific model might require allowlisting or use a standard one like 'gemini-1.5-flash'
-                model: 'gemini-1.5-flash-latest', // Using a standard model, adjust if needed
+                model: 'gemini-2.0-flash-exp',
                 callbacks: {
                     onopen: () => {
                         console.log('NodeHelper: Live Connection OPENED.');

@@ -18,6 +18,7 @@ const CHANNELS = 1;
 const AUDIO_TYPE = 'raw'; // Corresponds to Linear PCM
 const ENCODING = 'signed-integer'; // Corresponds to 16-bit signed integer
 const BITS = 16;
+
 // *** IMPORTANT: This MIME type exactly matches the API's stated input requirement ***
 const GEMINI_INPUT_MIME_TYPE = `audio/l16`; // Linear16 PCM at 16kHz
 
@@ -255,7 +256,7 @@ module.exports = NodeHelper.create({
                     // +++ Add logging for the MIME type right before sending +++
                     const payloadToSend = {
                         media: {
-                            mimeType: "audio/l16;rate=16000", // Use constant
+                            mimeType: "audio/pcm", // Use constant
                             data: base64Chunk
                         }
                     };

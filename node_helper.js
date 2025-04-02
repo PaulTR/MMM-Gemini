@@ -6,28 +6,28 @@ const recorder = require('node-record-lpcm16');
 const { Buffer } = require('buffer'); // Explicit import
 
 // --- Configuration ---
-// IMPORTANT: Find the correct device name using 'arecord -l'. Example: 'plughw:1,0'
-const RECORDING_DEVICE = null; // SET THIS if needed! Use null for system default.
+const RECORDING_DEVICE = null; // SET THIS if needed! Use 'arecord -l'
 const SAMPLE_RATE = 16000;
 const CHANNELS = 1;
-const AUDIO_TYPE = 'raw'; // Output raw PCM
+const AUDIO_TYPE = 'raw';
 const ENCODING = 'signed-integer';
 const BITS = 16;
-const GEMINI_MIME_TYPE = `audio/l16;rate=${SAMPLE_RATE}`; // L16 is linear PCM 16-bit
+const GEMINI_MIME_TYPE = `audio/l16;rate=${SAMPLE_RATE}`;
 
 module.exports = NodeHelper.create({
     // --- Helper State ---
     genAI: null,
     liveSession: null,
     apiKey: null,
-    recordingProcess: null, // Stores the recorder instance
+    recordingProcess: null,
     isRecording: false,
     apiInitialized: false,
-    apiInitializing: false, // Prevent multiple init attempts
+    apiInitializing: false,
 
     // --- Lifecycle Functions ---
     start: function() {
         console.log(`Starting node_helper for: ${this.name}`);
+        // Initialize states
         this.recordingProcess = null;
         this.isRecording = false;
         this.apiInitialized = false;
@@ -36,11 +36,13 @@ module.exports = NodeHelper.create({
 
     // --- API Initialization ---
     async initializeLiveGenAPI(apiKey) {
+        // Guard against multiple initializations
         if (this.apiInitialized || this.apiInitializing) {
             console.log(`NodeHelper (${this.name}): API initialization already complete or in progress.`);
-            if(this.apiInitialized) this.sendSocketNotification("HELPER_READY");
+            if (this.apiInitialized) this.sendSocketNotification("HELPER_READY");
             return;
         }
+        // Check for API key
         if (!apiKey) {
             console.error(`NodeHelper (${this.name}): API Key is missing! Cannot initialize.`);
             this.sendSocketNotification("HELPER_ERROR", { error: "API Key missing on server." });
@@ -49,298 +51,293 @@ module.exports = NodeHelper.create({
 
         this.apiKey = apiKey;
         this.apiInitializing = true;
-        console.log(`NodeHelper (${this.name}): Initializing GoogleGenAI...`);
+        console.log(`NodeHelper (${this.name}): Initializing GoogleGenAI for v1alpha...`);
 
         try {
+            // Initialize GenAI client if needed
             if (!this.genAI) {
                 this.genAI = new GoogleGenAI({
                     apiKey: this.apiKey,
-                    vertexai: false, // Ensure this matches your API key type (false for Google AI Studio key)
+                    vertexai: false,
                     systemInstruction: "You are a magical mirror that is friendly, whimsical, and fun. Respond as the mirror to user requests. Have fun with it.",
-                    httpOptions: { 'apiVersion': 'v1alpha' },
+                    httpOptions: { 'apiVersion': 'v1alpha' } // Required for experimental features
                 });
-                 console.log(`NodeHelper (${this.name}): GoogleGenAI instance created.`);
+                console.log(`NodeHelper (${this.name}): GoogleGenAI instance created with v1alpha endpoint.`);
             }
 
-            console.log(`NodeHelper (${this.name}): Attempting to establish Live Connection...`);
+            console.log(`NodeHelper (${this.name}): Attempting to establish Live Connection with gemini-2.0-flash-exp (Audio only response)...`); // Updated log
+
+            // Establish the live connection
             this.liveSession = await this.genAI.live.connect({
-                model: 'gemini-2.0-flash-exp', // Verify model availability and compatibility
+                model: 'gemini-2.0-flash-exp', // Required model
                 callbacks: {
                     onopen: () => {
-                        console.log(`NodeHelper (${this.name}): Live Connection OPENED.`);
+                        console.log(`NodeHelper (${this.name}): Live Connection OPENED (Model: gemini-2.0-flash-exp, Response: Audio).`); // Updated log
                         this.apiInitialized = true;
                         this.apiInitializing = false;
-                        this.sendSocketNotification("HELPER_READY"); // Notify FE connection is ready
+                        this.sendSocketNotification("HELPER_READY");
                     },
                     onmessage: (message) => {
-                        this.handleGeminiResponse(message);
+                        this.handleGeminiResponse(message); // Handle the incoming message
                     },
                     onerror: (e) => {
-                        // --- Enhanced Error Logging ---
-                        console.error(`NodeHelper (${this.name}): Live Connection ERROR Object:`, e); // Log the whole object
-                        const errorMessage = e?.message || e?.toString() || 'Unknown Live Connection Error'; // Try to get a message
+                        // Log detailed error information
+                        console.error(`NodeHelper (${this.name}): Live Connection ERROR Object:`, e);
+                        const errorMessage = e?.message || e?.toString() || 'Unknown Live Connection Error';
                         console.error(`NodeHelper (${this.name}): Live Connection ERROR Message:`, errorMessage);
-                        // --- End Enhanced Error Logging ---
 
-                        this.liveSession = null; // Reset session on error
+                        // Reset state on error
+                        this.liveSession = null;
                         this.apiInitialized = false;
-                        this.apiInitializing = false; // Allow retry on next start
+                        this.apiInitializing = false;
                         this.stopRecording(); // Stop any active recording
                         this.sendSocketNotification("HELPER_ERROR", { error: `Live Connection Error: ${errorMessage}` });
                     },
                     onclose: (e) => {
-                        // --- Enhanced Close Logging ---
+                        // Log detailed close information
                         console.warn(`NodeHelper (${this.name}): Live Connection CLOSED.`);
-                        console.warn(`NodeHelper (${this.name}): Live Connection CLOSE Event Object:`, e); // Log the close event object
-                        // --- End Enhanced Close Logging ---
+                        console.warn(`NodeHelper (${this.name}): Live Connection CLOSE Event Object:`, e);
 
-                        this.liveSession = null; // Reset session on close
+                        // Reset state on close
+                        this.liveSession = null;
                         this.apiInitialized = false;
                         this.apiInitializing = false;
                         this.stopRecording(); // Stop any active recording
-                         // Optionally notify frontend connection closed if needed
-                         // this.sendSocketNotification("CONNECTION_CLOSED", { reason: e });
                     },
                 },
+                // --- *** CHANGE: Request ONLY Audio modality *** ---
                 config: { responseModalities: [Modality.AUDIO] },
             });
             console.log(`NodeHelper (${this.name}): live.connect called, waiting for onopen callback.`);
 
         } catch (error) {
+            // Log initialization errors
             console.error(`NodeHelper (${this.name}): Failed to initialize Live GenAI connection:`, error);
-             console.error(`NodeHelper (${this.name}): Full initialization error stack:`, error.stack); // Log stack trace
+            console.error(`NodeHelper (${this.name}): Full initialization error stack:`, error.stack);
+
+            // Reset state and notify frontend
             this.liveSession = null;
             this.apiInitialized = false;
             this.apiInitializing = false;
-             this.sendSocketNotification("HELPER_ERROR", { error: `API Initialization failed: ${error.message || error}` });
+            this.sendSocketNotification("HELPER_ERROR", { error: `API Initialization failed: ${error.message || error}` });
         }
     },
 
     // --- Socket Notification Handler ---
     async socketNotificationReceived(notification, payload) {
-        console.log(`NodeHelper (${this.name}) received notification: ${notification}`); // Log received notifications
+        console.log(`NodeHelper (${this.name}) received notification: ${notification}`);
 
-        if (notification === "START_CHAT") {
-            if (!payload || !payload.apikey) {
-                 console.error(`NodeHelper (${this.name}): START_CHAT received without API key.`);
-                 this.sendSocketNotification("HELPER_ERROR", { error: "API key not provided by frontend." });
-                 return;
-            }
-            this.initializeLiveGenAPI(payload.apikey);
-        } else if (notification === "TRIGGER_RECORDING") {
-            if (!this.apiInitialized || !this.liveSession || !this.liveSession.isOpen) {
-                console.warn(`NodeHelper (${this.name}): Cannot record, API session not ready or open. State: Initialized=${this.apiInitialized}, SessionExists=${!!this.liveSession}, SessionOpen=${this.liveSession?.isOpen}`);
-                this.sendSocketNotification("HELPER_ERROR", { error: "Cannot record: API connection not ready." });
-                return;
-            }
-            if (this.isRecording) {
-                console.warn(`NodeHelper (${this.name}): Already recording. Ignoring trigger.`);
-                return;
-            }
-            const duration = payload && payload.duration ? payload.duration : 3000; // Default duration if not provided
-            this.startRecording(duration);
+        switch (notification) {
+            case "START_CHAT":
+                // Initialize API when requested by frontend
+                if (!payload || !payload.apikey) {
+                    console.error(`NodeHelper (${this.name}): START_CHAT received without API key.`);
+                    this.sendSocketNotification("HELPER_ERROR", { error: "API key not provided by frontend." });
+                    return;
+                }
+                this.initializeLiveGenAPI(payload.apikey);
+                break;
+
+            case "TRIGGER_RECORDING":
+                // Start recording process if API is ready and not already recording
+                if (!this.apiInitialized || !this.liveSession || !this.liveSession.isOpen) {
+                    console.warn(`NodeHelper (${this.name}): Cannot record, API session not ready or open. State: Initialized=${this.apiInitialized}, SessionExists=${!!this.liveSession}, SessionOpen=${this.liveSession?.isOpen}`);
+                    this.sendSocketNotification("HELPER_ERROR", { error: "Cannot record: API connection not ready." });
+                    return;
+                }
+                if (this.isRecording) {
+                    console.warn(`NodeHelper (${this.name}): Already recording. Ignoring trigger.`);
+                    return;
+                }
+                const duration = payload && payload.duration ? payload.duration : 3000; // Use provided duration or default
+                this.startRecording(duration);
+                break;
+
+            // Add other notification handlers here if needed
         }
-        // Add handling for other notifications if needed (e.g., STOP_HELPER_PROCESSING)
     },
 
     // --- Audio Recording ---
     startRecording(duration) {
         console.log(`NodeHelper (${this.name}): Starting recording for ${duration}ms...`);
         this.isRecording = true;
-        this.sendSocketNotification("RECORDING_STARTED");
+        this.sendSocketNotification("RECORDING_STARTED"); // Notify frontend
 
+        // Configure the recorder
         const recorderOptions = {
             sampleRate: SAMPLE_RATE,
             channels: CHANNELS,
             audioType: AUDIO_TYPE,
             encoding: ENCODING,
             bits: BITS,
-            device: RECORDING_DEVICE, // Use configured device or null for default
-            // verbose: true, // Uncomment for debugging recorder setup
-            debug: false, // Keep recorder's own debug logs off unless needed
-            threshold: 0, // Start recording immediately
+            device: RECORDING_DEVICE, // Use configured device
+            debug: false,
+            threshold: 0, // Record immediately
         };
-         console.log(`NodeHelper (${this.name}): Recorder options:`, recorderOptions);
+        console.log(`NodeHelper (${this.name}): Recorder options:`, recorderOptions);
 
         try {
+            // Start the recording process
             this.recordingProcess = recorder.record(recorderOptions);
             const audioStream = this.recordingProcess.stream();
 
+            // Handle incoming audio data chunks
             audioStream.on('data', async (chunk) => {
-                 if (!this.isRecording) {
-                     // This can happen briefly if stopRecording is called just before a final chunk arrives
-                     // console.warn(`NodeHelper (${this.name}): Received data after recording stopped. Ignoring.`);
-                     return; // Don't process data if stop was called
-                 }
-                 if (!this.liveSession || !this.liveSession.isOpen) {
-                    console.warn(`NodeHelper (${this.name}): Live session closed/invalid during recording data event. Stopping recording.`);
-                    this.stopRecording();
-                    return;
+                // Ensure still recording and session is valid
+                if (!this.isRecording || !this.liveSession || !this.liveSession.isOpen) {
+                    if (this.isRecording) { // Only log warning if session died during recording
+                         console.warn(`NodeHelper (${this.name}): Live session closed/invalid during recording data event. Stopping recording.`);
+                         this.stopRecording();
+                    }
+                    return; // Ignore chunk if stopped or session invalid
                 }
 
-                // Convert raw PCM chunk (Buffer) to Base64
+                // Encode chunk and send to API
                 const base64Chunk = chunk.toString('base64');
-
                 try {
-                    // console.log(`NodeHelper (${this.name}): Sending audio chunk (${base64Chunk.length} base64 chars)...`); // Very verbose log
                     await this.liveSession.sendRealtimeInput({
                         media: {
                             mimeType: GEMINI_MIME_TYPE,
                             data: base64Chunk
                         }
                     });
-                    // Optional: Acknowledge chunk sent - might be too noisy
-                    // this.sendSocketNotification("DATA_SENT");
                 } catch (apiError) {
+                    // Handle API send errors
                     console.error(`NodeHelper (${this.name}): Error sending audio chunk to Gemini:`, apiError);
-                     console.error(`NodeHelper (${this.name}): Gemini send error stack:`, apiError.stack); // Log stack trace
-                    // Decide if this error is fatal for the recording session
+                    console.error(`NodeHelper (${this.name}): Gemini send error stack:`, apiError.stack);
                     this.sendSocketNotification("HELPER_ERROR", { error: `API send error: ${apiError.message}` });
-                    this.stopRecording(); // Stop recording on API send error
+                    this.stopRecording(); // Stop recording on error
                 }
             });
 
+            // Handle recording stream errors
             audioStream.on('error', (err) => {
                 console.error(`NodeHelper (${this.name}): Recording stream error:`, err);
-                 console.error(`NodeHelper (${this.name}): Recording stream error stack:`, err.stack); // Log stack trace
+                console.error(`NodeHelper (${this.name}): Recording stream error stack:`, err.stack);
                 this.sendSocketNotification("HELPER_ERROR", { error: `Audio recording error: ${err.message}` });
-                this.stopRecording(true); // Force stop on stream error
+                this.stopRecording(true); // Force stop
             });
 
-            // Handle unexpected process exit (less likely with stream errors handled)
+            // Handle unexpected recording process exit
             this.recordingProcess.process.on('exit', (code, signal) => {
-                if (this.isRecording) { // Only log/notify if we didn't initiate the stop
+                if (this.isRecording) { // Only act if we didn't initiate the stop
                     console.warn(`NodeHelper (${this.name}): Recording process exited unexpectedly with code ${code}, signal ${signal}.`);
-                    // No need to call stopRecording here, as it was already called or process died
-                    this.isRecording = false; // Ensure state is updated
+                    this.isRecording = false;
                     this.recordingProcess = null;
                     this.sendSocketNotification("HELPER_ERROR", { error: `Recording process stopped unexpectedly (code: ${code})` });
-                    this.sendSocketNotification("RECORDING_STOPPED"); // Notify FE it stopped
+                    this.sendSocketNotification("RECORDING_STOPPED");
                 }
             });
 
-
-            // Set timeout to stop recording after the specified duration
+            // Schedule recording stop timer
             setTimeout(() => {
-                if (this.isRecording && this.recordingProcess) { // Check if still supposed to be recording
-                     console.log(`NodeHelper (${this.name}): Recording duration (${duration}ms) reached. Stopping.`);
-                     this.stopRecording();
+                if (this.isRecording && this.recordingProcess) { // Ensure it's still relevant
+                    console.log(`NodeHelper (${this.name}): Recording duration (${duration}ms) reached. Stopping.`);
+                    this.stopRecording();
                 }
-                // Optional: Notify FE that sending is complete after a short delay
-                // setTimeout(() => this.sendSocketNotification("SENDING_COMPLETE"), 100);
             }, duration);
 
         } catch (recordError) {
+            // Handle errors during recorder initialization
             console.error(`NodeHelper (${this.name}): Failed to start recording process:`, recordError);
-            console.error(`NodeHelper (${this.name}): Recording start error stack:`, recordError.stack); // Log stack trace
+            console.error(`NodeHelper (${this.name}): Recording start error stack:`, recordError.stack);
             this.sendSocketNotification("HELPER_ERROR", { error: `Failed to start recording: ${recordError.message}` });
-            this.isRecording = false; // Ensure state is reset
+            this.isRecording = false;
             this.recordingProcess = null;
-             this.sendSocketNotification("RECORDING_STOPPED"); // Notify FE it stopped (or never started properly)
+            this.sendSocketNotification("RECORDING_STOPPED"); // Notify frontend
         }
     },
 
+    // --- Stop Recording ---
     stopRecording(force = false) {
         if (this.recordingProcess && (this.isRecording || force)) {
             console.log(`NodeHelper (${this.name}): Stopping recording process (Forced: ${force})...`);
-            const wasRecording = this.isRecording; // Keep track if we were actually recording
-            this.isRecording = false; // Set state immediately to prevent race conditions with data events
+            const wasRecording = this.isRecording;
+            this.isRecording = false; // Update state immediately
 
             try {
-                // Detach listeners first to prevent handling events during/after stop
+                // Clean up listeners and stop the process
                 const stream = this.recordingProcess.stream();
                 if (stream) {
                     stream.removeAllListeners('data');
                     stream.removeAllListeners('error');
                 }
-                if(this.recordingProcess.process) {
+                if (this.recordingProcess.process) {
                     this.recordingProcess.process.removeAllListeners('exit');
                 }
-                // Now stop the process
                 this.recordingProcess.stop();
                 console.log(`NodeHelper (${this.name}): Recorder stop() called.`);
             } catch (stopError) {
-                 console.error(`NodeHelper (${this.name}): Error during recorder.stop():`, stopError);
-                 console.error(`NodeHelper (${this.name}): Recorder stop() error stack:`, stopError.stack);
+                console.error(`NodeHelper (${this.name}): Error during recorder.stop():`, stopError);
+                console.error(`NodeHelper (${this.name}): Recorder stop() error stack:`, stopError.stack);
             } finally {
-                 // Send notification *after* attempting stop, only if it was genuinely recording before the call
-                 if (wasRecording) {
+                // Notify frontend only if it was actually recording
+                if (wasRecording) {
                     this.sendSocketNotification("RECORDING_STOPPED");
-                 }
-                 this.recordingProcess = null; // Clean up the reference
+                }
+                this.recordingProcess = null; // Clean up reference
             }
         } else if (this.recordingProcess) {
-             // It exists but we weren't 'recording' (e.g., stop called twice)
-             console.log(`NodeHelper (${this.name}): stopRecording called, but isRecording flag was already false.`);
-             this.recordingProcess = null; // Still clean up ref if needed
+            // Handle case where stop is called but already stopped
+            console.log(`NodeHelper (${this.name}): stopRecording called, but isRecording flag was already false.`);
+            this.recordingProcess = null; // Clean up ref just in case
         }
     },
 
-    // --- Gemini Response Handling ---
+    // --- Gemini Response Handling (Audio Focused) ---
     handleGeminiResponse(message) {
-         console.log(`NodeHelper (${this.name}): Received message from Gemini:`, JSON.stringify(message, null, 2)); // Pretty print JSON
-        let responsePayload = {};
+        console.log(`NodeHelper (${this.name}): Received message from Gemini:`, JSON.stringify(message, null, 2));
+        let responsePayload = {}; // Initialize empty payload
 
-        // Extract text response
-        const text = message?.response?.results?.[0]?.alternatives?.[0]?.text;
-        if (text) {
-            console.log(`NodeHelper (${this.name}): Text response:`, text);
-            responsePayload.text = text;
-        }
-
+        // --- *** CHANGE: Focus on Audio Response *** ---
         // Extract audio response (likely base64)
         const audio = message?.response?.results?.[0]?.alternatives?.[0]?.audio;
         if (audio) {
-             console.log(`NodeHelper (${this.name}): Received audio response (base64 length: ${audio.length}).`);
-             responsePayload.audio = audio;
-             // TODO: Implement audio playback on the Pi using Speaker if desired
-             // Example (needs Speaker setup): this.playAudio(audio);
+            console.log(`NodeHelper (${this.name}): Received audio response (base64 length: ${audio.length}).`);
+            responsePayload.audio = audio; // Add audio data to payload
+            // Optional: Trigger audio playback on the Pi itself
+            // this.playAudio(audio);
+        } else {
+            // Log if no audio data found where expected
+             console.warn(`NodeHelper (${this.name}): Received Gemini message but found no 'audio' data.`);
         }
 
-        // Send extracted data back to frontend module
-        if (Object.keys(responsePayload).length > 0) {
+        // Check for prompt feedback or errors within the response
+         if (message?.response?.promptFeedback) {
+             console.warn(`NodeHelper (${this.name}): Prompt feedback received:`, JSON.stringify(message.response.promptFeedback, null, 2));
+             // Potentially send this feedback to the frontend if needed
+             // responsePayload.feedback = message.response.promptFeedback;
+         }
+
+        // Send the payload (containing audio or potentially feedback) back to frontend module
+        // Only send if we actually got audio data
+        if (responsePayload.audio) {
              this.sendSocketNotification("GEMINI_RESPONSE", responsePayload);
         } else {
-             console.warn(`NodeHelper (${this.name}): Received Gemini message with no recognized text or audio content.`);
-             // console.warn(`NodeHelper (${this.name}): Full unrecognized message:`, JSON.stringify(message, null, 2)); // Log full message if needed
-             // Check for potential errors within the response structure itself
-             if (message?.response?.promptFeedback) {
-                console.warn(`NodeHelper (${this.name}): Prompt feedback received:`, JSON.stringify(message.response.promptFeedback, null, 2));
-             }
+            // Decide if we should notify the frontend about the lack of audio response
+            console.warn(`NodeHelper (${this.name}): Not sending GEMINI_RESPONSE notification as no audio data was extracted.`);
+             // Optionally send a different notification or specific error/status
+             // this.sendSocketNotification("NO_AUDIO_RESPONSE");
         }
     },
 
-    /* // Example Audio Playback (requires 'speaker' package: npm install speaker)
+    /* // Example Audio Playback (requires 'speaker' package)
     playAudio(base64Audio) {
         const { Speaker } = require('speaker');
         const { Readable } = require('stream');
-
         try {
-            // Assuming Gemini sends L16/16kHz audio back - ADJUST IF DIFFERENT
-            const speaker = new Speaker({
-                channels: 1,          // Stereo or mono? Gemini likely sends mono.
-                bitDepth: 16,
-                sampleRate: 16000     // Match the expected output format
-            });
-
+            const speaker = new Speaker({ channels: 1, bitDepth: 16, sampleRate: 16000 });
             const buffer = Buffer.from(base64Audio, 'base64');
             const readable = new Readable();
-            readable._read = () => {}; // No pulling needed
+            readable._read = () => {};
             readable.push(buffer);
-            readable.push(null); // Signal end of stream
-
+            readable.push(null);
             console.log(`NodeHelper (${this.name}): Attempting to play received audio...`);
             readable.pipe(speaker);
-
-            speaker.on('finish', () => {
-                console.log(`NodeHelper (${this.name}): Audio playback finished.`);
-            });
-            speaker.on('error', (err) => {
-                 console.error(`NodeHelper (${this.name}): Speaker error:`, err);
-            });
-
+            speaker.on('finish', () => console.log(`NodeHelper (${this.name}): Audio playback finished.`));
+            speaker.on('error', (err) => console.error(`NodeHelper (${this.name}): Speaker error:`, err));
         } catch(e) {
-             console.error(`NodeHelper (${this.name}): Failed to initialize Speaker:`, e);
+            console.error(`NodeHelper (${this.name}): Failed to initialize Speaker:`, e);
         }
     }
     */
@@ -348,27 +345,26 @@ module.exports = NodeHelper.create({
     // --- Stop Helper ---
     stop: function() {
         console.log(`Stopping node_helper for: ${this.name}`);
-        this.stopRecording(true); // Force stop any recording
+        this.stopRecording(true); // Force stop recording
+        // Close the live session if it exists and is open
         if (this.liveSession) {
             console.log(`NodeHelper (${this.name}): Closing live session...`);
             try {
-                // Check if close method exists and session is open before calling
                 if (typeof this.liveSession.close === 'function' && this.liveSession.isOpen) {
                     this.liveSession.close();
                     console.log(`NodeHelper (${this.name}): liveSession.close() called.`);
-                } else if (this.liveSession.isOpen === false) {
-                     console.log(`NodeHelper (${this.name}): liveSession was already closed.`);
                 } else {
-                     console.log(`NodeHelper (${this.name}): liveSession.close method not available or session state unknown.`);
+                     console.log(`NodeHelper (${this.name}): liveSession already closed or close method not available.`);
                 }
             } catch (e) {
                  console.error(`NodeHelper (${this.name}): Error closing live session:`, e);
             }
-            this.liveSession = null;
         }
+        // Reset all state variables
+        this.liveSession = null;
         this.apiInitialized = false;
         this.apiInitializing = false;
-        this.genAI = null; // Clean up GenAI instance too
+        this.genAI = null; // Clean up GenAI instance
         console.log(`NodeHelper (${this.name}): Stopped.`);
     }
 });

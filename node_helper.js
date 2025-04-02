@@ -152,7 +152,7 @@ module.exports = NodeHelper.create({
 
             const blob = {
                 mimeType: 'audio/pcm',
-                data: chunk,
+                data: audiodata,
             };
 
             if( this.liveSession ) {
@@ -165,4 +165,5 @@ module.exports = NodeHelper.create({
             const apiKey = payload.apikey
             await this.initializeLiveGenAPI(apiKey)
         }
+    }
 });

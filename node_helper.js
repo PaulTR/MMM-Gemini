@@ -168,15 +168,15 @@ module.exports = NodeHelper.create({
             const audiodata = payload.audio;
             // console.log(audiodata);
 
-            // const audioPart = {
-            //     inlineData: {
-            //         mimeType: 'audio/wav',
-            //         data: audiodata,
-            //     },
-            // };
+            const audioPart = {
+                inlineData: {
+                    mimeType: 'audio/wav',
+                    data: audiodata,
+                },
+            };
 
             if( this.liveSession ) {
-                this.liveSession.sendRealtimeInput({ media: [audiodata] })
+                this.liveSession.sendRealtimeInput({ media_chunks: audioPart })
                 this.sendSocketNotification("NOTIFICATION_CLEAR");
             }
         }

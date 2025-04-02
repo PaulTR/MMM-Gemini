@@ -36,7 +36,7 @@ module.exports = NodeHelper.create({
                     apiKey: this.apiKey,
                     vertexai: false,
                     systemInstruction: "You are a magical mirror that is friendly, whimsical, and fun. Respond as the mirror to user requests. Have fun with it.",
-                    // httpOptions: { 'apiVersion': 'v1alpha' } // v1alpha might be default or implied for live.connect
+                    httpOptions: { 'apiVersion': 'v1alpha' } // v1alpha might be default or implied for live.connect
                 });
                  console.log("NodeHelper: GoogleGenAI instance created.");
             }

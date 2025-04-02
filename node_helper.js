@@ -117,10 +117,8 @@ module.exports = NodeHelper.create({
     },
 
     createSpeaker: function() {
-        console.log('[Audio] Creating new Speaker instance.');
-         // Clean up any remnants just in case
-         this.closeSpeaker(true); // Force close any previous instance first
-         this.isWaitingForDrain = false; // Reset flag
+        console.log(`[Audio] Creating speaker with Rate: ${this.SAMPLE_RATE}, Channels: ${this.CHANNELS}, Depth: ${this.BIT_DEPTH}`);
+        this.closeSpeaker(true); // Force close any previous instance first
 
         try {
             this.currentSpeaker = new Speaker({
@@ -131,24 +129,33 @@ module.exports = NodeHelper.create({
 
             this.currentSpeaker.on('error', (err) => {
                 console.error('Speaker Error:', err.message);
-                this.isWaitingForDrain = false; // Reset flag on error
-                this.closeSpeaker(true); // Close forcefully on error
+                this.closeSpeaker(true);
             });
 
             this.currentSpeaker.on('close', () => {
                 console.log('[Audio] Speaker instance closed.');
-                this.isWaitingForDrain = false; // Reset flag on close
-                // Speaker might already be null via closeSpeaker, but ensure it
-                this.currentSpeaker = null;
+                this.currentSpeaker = null; // Ensure it's null on close
             });
 
-            // --- REMOVED PERSISTENT DRAIN LISTENER ---
-            // We will now add it temporarily only when needed in drainAudioQueue
+            // --- ADDED DELAY ---
+            // Wait a short moment before the first drain attempt after creation
+            const initialDrainDelay = 100; // Milliseconds
+            console.log(`[Audio] Speaker created, waiting ${initialDrainDelay}ms before initial drain check.`);
+            setTimeout(() => {
+                console.log('[Audio] Initial delay finished.');
+                // Check if speaker still exists before draining
+                if (this.currentSpeaker && !this.currentSpeaker.destroyed && this.audioQueue.length > 0) {
+                    console.log('[Audio] Attempting drain after initial delay.');
+                    this.drainAudioQueue();
+                } else {
+                     console.log('[Audio] Skipping drain after delay (speaker closed or queue empty).');
+                }
+            }, initialDrainDelay);
+            // --- END ADDED DELAY ---
 
         } catch (speakerCreationError) {
             console.error("Error creating Speaker instance:", speakerCreationError.message);
             this.currentSpeaker = null;
-            this.isWaitingForDrain = false;
         }
     },
 

@@ -10,39 +10,29 @@ module.exports = NodeHelper.create({
     genAI: null,
     liveSession: null,
 
-    // --- Audio Playback Configuration ---
     SAMPLE_RATE: 24000, // Assuming a sample rate of 24000 Hz; adjust if necessary
     CHANNELS: 1,       // Assuming mono audio; adjust if necessary
     BIT_DEPTH: 16,      // Assuming 16-bit audio; adjust if necessary
     INTER_CHUNK_DELAY_MS: 0, // Delay between audio chunks
 
 
-    // --- Audio Playback State ---
     audioQueue: [],
     isPlaying: false,
 
     initializeGenAI: function(apiKey) {
-        if (!this.genAI) {
-            console.log("initializing!");
-            this.genAI = new GoogleGenAI({ apiKey: apiKey, vertexai: false, systemInstruction: "You are a magical mirror that is friendly, whimsical, and fun. Respond as the mirror to user requests. Have fun with it.", httpOptions: { 'apiVersion': 'v1alpha' } });
-        }
-    },
-
-    initializeImageGenAI: function(apiKey) {
-        if (!this.genAI) {
-            console.log("initializing image genAI!"); // Added specific log
-            this.genAI = new GoogleGenAI({vertexai: false, apiKey: apiKey});
-        }
+        
     },
 
     async initializeLiveGenAPI(apiKey) {
         if( !this.liveSession ) {
-            this.initializeGenAI(apiKey);
+            if(!this.genAI) {
+                console.log("initializing!");
+                this.genAI = new GoogleGenAI({ apiKey: apiKey, vertexai: false, systemInstruction: "You are a magical mirror that is friendly, whimsical, and fun. Respond as the mirror to user requests. Have fun with it.", httpOptions: { 'apiVersion': 'v1alpha' } });
+            }
 
             this.liveSession = await this.genAI.live.connect({
-                model: 'gemini-2.0-flash-exp', // Or your preferred model supporting Live API
+                model: 'gemini-2.0-flash-exp',
                 callbacks: {
-                    // Use arrow functions to maintain 'this' context
                     onopen: () => {
                         console.log('NodeHelper: Live Connection OPENED.');
                     },
@@ -67,13 +57,13 @@ module.exports = NodeHelper.create({
                          }
                     },
                     onerror: (e) => {
-                        console.error('NodeHelper: Live Connection ERROR Object:', e); // Log the whole object
+                        console.error('NodeHelper: Live Connection ERROR Object:', e);
                         console.error('NodeHelper: Live Connection ERROR Message:', e?.message || 'No message');
                         this.audioQueue = [];
                         this.isPlaying = false;
                     },
                     onclose: (e) => {
-                        console.error('NodeHelper: Live Connection CLOSED Object:', e); // Log the whole object
+                        console.error('NodeHelper: Live Connection CLOSED Object:', e);
                         this.audioQueue = [];
                         this.isPlaying = false;
                     },
@@ -89,7 +79,6 @@ module.exports = NodeHelper.create({
         try {
             const buffer = Buffer.from(base64Data, 'base64');
             this.audioQueue.push(buffer);
-            // Trigger processing asynchronously. If already playing, it will wait.
             setImmediate(this.processNextAudioChunk.bind(this));
         } catch (error) {
             console.error('\nError decoding base64 audio:', error);
@@ -107,20 +96,17 @@ module.exports = NodeHelper.create({
 
         // --- Cleanup Function (Modified for Delay) ---
         const cleanupAndProceed = (speakerInstance, errorOccurred = false) => {
-            if (!this.isPlaying) { return; } // Already cleaned up or wasn't playing
+            if (!this.isPlaying) { return; }
 
-            this.isPlaying = false; // Release the lock *before* the delay
+            this.isPlaying = false; 
 
             if (speakerInstance && !speakerInstance.destroyed) {
                 try { speakerInstance.destroy(); } catch (e) { console.warn("Warning: Error destroying speaker during cleanup:", e.message); }
             }
             currentSpeaker = null;
 
-            // *** MODIFIED: Use setTimeout for delay before next chunk ***
             if (this.INTER_CHUNK_DELAY_MS > 0) {
-                // console.log(`[cleanupAndProceed] Audio finished. Waiting ${INTER_CHUNK_DELAY_MS}ms before next check.`);
                 setTimeout(() => {
-                    // console.log("[cleanupAndProceed] Delay finished. Checking for next chunk.");
                     this.processNextAudioChunk(); // Check queue after delay
                 }, this.INTER_CHUNK_DELAY_MS);
             } else {
@@ -166,14 +152,8 @@ module.exports = NodeHelper.create({
 
         if( notification === "SEND_AUDIO" ) {
             const audiodata = payload.chunk;
+            console.error("SEND AUDIO")
             // console.log(audiodata);
-
-            // const audioPart = {
-            //     inlineData: {
-            //         mimeType: 'audio/wav',
-            //         data: audiodata,
-            //     },
-            // };
 
             const blob = {
                 mimeType: 'audio/pcm',
@@ -190,84 +170,4 @@ module.exports = NodeHelper.create({
             const apiKey = payload.apikey
             await this.initializeLiveGenAPI(apiKey)
         }
-
-        if( notification === "SEND_TEXT") {
-            if( this.liveSession ) {
-                const inputText = payload.text
-                console.log('NodeHelper: Send text: ' + inputText)
-                this.liveSession.sendClientContent({ turns: inputText })
-                this.sendSocketNotification("NOTIFICATION_CLEAR");
-            }
-        }
-
-        if (notification === "GET_RANDOM_TEXT") {
-            const amountCharacters = payload.amountCharacters || 10;
-            const randomText = Array.from({ length: amountCharacters }, () =>
-                String.fromCharCode(Math.floor(Math.random() * 26) + 97)
-            ).join("");
-            this.sendSocketNotification("EXAMPLE_NOTIFICATION", { text: randomText });
-        }
-
-        if (notification === "GENERATE_IMAGE") {
-            const apiKey = payload.apikey;
-            this.initializeImageGenAI(apiKey);
-
-            try {
-                const response = await this.genAI.models.generateImages({
-                    model: 'imagen-3.0-generate-002',
-                    prompt: 'a magical fantasy castle',
-                    config: {
-                        numberOfImages: 1,
-                        includeRaiReason: true,
-                        personGeneration: PersonGeneration.ALLOW_ADULT,
-                    },
-                });
-
-                const imageBytes = response?.generatedImages?.[0]?.image?.imageBytes;
-
-                // console.debug("Image Bytes (base64):", imageBytes);
-
-                if (imageBytes) {
-                    const buffer = Buffer.from(imageBytes, 'base64');
-                    const randomSuffix = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-                    const filename = `./modules/MMM-Template/generated-images/gemini-native-image-${randomSuffix}.png`;
-
-                    fs.writeFile(filename, buffer, (err) => {
-                        if (err) {
-                            console.error("Error writing file:", err);
-                            this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: `Error saving image: ${err.message}` });
-                        } else {
-                            console.log('Image saved as', filename);
-                            this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: "Image generated and saved successfully!", filename: filename }); // Send filename in notification
-                            this.useGeneratedImage(filename); // Call the function with the filename
-                        }
-                    });
-                } else {
-                    console.error("No image data received from Gemini.");
-                    this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: "No image data received from Gemini." });
-                }
-            } catch (error) {
-                console.error("Error generating image:", error);
-                this.sendSocketNotification("NOTIFICATION_GENERATE_IMAGE", { text: `Error generating image: ${error.message}` });
-            }
-        }
-
-        if (notification === "GENERATE_TEXT") {
-            const apiKey = payload.apikey;
-            this.initializeGenAI(apiKey);
-
-            try {
-                const response = await this.genAI.models.generateContent({
-                    model: "gemini-2.0-flash",
-                    contents: "Write a joke about a magic backpack. Keep it under 40 words",
-                });
-
-                console.log(response.text);
-                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: response.text });
-            } catch (error) {
-                console.error("Error generating text:", error);
-                this.sendSocketNotification("NOTIFICATION_GENERATE_TEXT", { text: `Error generating text: ${error.message}` });
-            }
-        }
-    },
 });

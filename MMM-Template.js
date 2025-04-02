@@ -8,11 +8,11 @@ Module.register("MMM-Template", {
         this.templateContent = this.config.exampleContent
         this.apikey = this.config.apikey
         await this.startChat()
-        setInterval(() => this.sendAudio(), 7000); // Added
+        setInterval(() => this.sendAudio(), 7000);
     },
     socketNotificationReceived: function (notification, payload) {
-        if (notification === "EXAMPLE_NOTIFICATION") {
-            this.templateContent = `${this.config.apikey} ${payload.text}`
+        if (notification === "DATA_SENT") {
+            this.templateContent = `Data sent`
             this.updateDom()
         }
     },
@@ -53,7 +53,6 @@ Module.register("MMM-Template", {
 
     recordAudio: function (duration) {
         return new Promise((resolve, reject) => {
-            // Check if running in Node.js/Electron environment (MagicMirror on Pi)
             if (typeof require === 'function' && typeof process === 'object') {
                 console.log("MMM-Template: Running in Node.js environment, using node-record-lpcm16 for raw PCM.");
                 Log.info("MMM-Template: Using node-record-lpcm16 for raw PCM recording."); // Use MagicMirror logger
@@ -101,6 +100,10 @@ Module.register("MMM-Template", {
                      reject(new Error("Failed to initialize audio recorder: " + err));
                 }
 
+            }
+            else {
+            this.templateContent = 'not recording'
+            this.updateDom()
             }
         });
     }

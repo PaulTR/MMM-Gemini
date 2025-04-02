@@ -24,7 +24,7 @@ Module.register("MMM-Template", {
             this.updateDom();
             return;
         }
-        this.sendSocketNotification("START_CHAT", { apikey: this.config.apiKey });
+        this.sendSocketNotification("START_CHAT", { apikey: this.config.apikey });
 
         // Use a timer that waits for the previous operation to complete
         this.scheduleNextRecording();

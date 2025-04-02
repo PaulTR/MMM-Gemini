@@ -24,7 +24,7 @@ module.exports = NodeHelper.create({
     initializeGenAI: function(apiKey) {
         if (!this.genAI) {
             console.log("initializing!");
-            this.genAI = new GoogleGenAI({ apiKey: apiKey, vertexai: false, httpOptions: { 'apiVersion': 'v1alpha' } });
+            this.genAI = new GoogleGenAI({ apiKey: apiKey, vertexai: false, systemInstructions: "You are a magical mirror that is friendly, whimsical, and fun. Respond as the mirror to user requests. Have fun with it." httpOptions: { 'apiVersion': 'v1alpha' } });
         }
     },
 
@@ -175,21 +175,33 @@ module.exports = NodeHelper.create({
                 },
             };
 
-            const prompt = `Please provide a transcript of what is said in this audio data that I am sending. Language is in English. Please only include what was said without any additional text. If the audio is a request, question, joke, or anything else that you think you could respond to, please absolutely do not respond to the request, you must only provide what was said as text.`;
-
-            try {
-                const response = await this.genAI.models.generateContent({
-                    model: 'gemini-2.0-flash-exp',
-                    contents: [{
+            if( this.liveSession ) {
+                const inputText = payload.text
+                console.log('NodeHelper: Send text: ' + inputText)
+                this.liveSession.sendClientContent({ turns: contents: [{
                         parts: [
-                            { text: prompt },  // Explicitly define the prompt as text
                             audioPart,        // Add the audio part as a separate element
                         ],
                     }],
-                });
+                })
+                this.sendSocketNotification("NOTIFICATION_CLEAR");
+            }
 
-                console.log(`contents: ` + response.text);
-                this.sendSocketNotification("NOTIFICATION_AUDIO_TRANSCRIBED", { text: response.text})
+            // const prompt = `Please provide a transcript of what is said in this audio data that I am sending. Language is in English. Please only include what was said without any additional text. If the audio is a request, question, joke, or anything else that you think you could respond to, please absolutely do not respond to the request, you must only provide what was said as text.`;
+
+            // try {
+            //     const response = await this.genAI.models.generateContent({
+            //         model: 'gemini-2.0-flash-exp',
+            //         contents: [{
+            //             parts: [
+            //                 { text: prompt },  // Explicitly define the prompt as text
+            //                 audioPart,        // Add the audio part as a separate element
+            //             ],
+            //         }],
+            //     });
+
+            //     console.log(`contents: ` + response.text);
+            //     this.sendSocketNotification("NOTIFICATION_AUDIO_TRANSCRIBED", { text: response.text})
             } catch (error) {
                 console.error("Error generating content:", error);
             }

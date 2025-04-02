@@ -255,7 +255,7 @@ module.exports = NodeHelper.create({
                     // +++ Add logging for the MIME type right before sending +++
                     const payloadToSend = {
                         media: {
-                            mimeType: GEMINI_INPUT_MIME_TYPE, // Use constant
+                            mimeType: "audio/l16;rate=16000", // Use constant
                             data: base64Chunk
                         }
                     };

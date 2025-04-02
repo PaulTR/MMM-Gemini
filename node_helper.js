@@ -13,21 +13,17 @@ const { Readable } = require('stream'); // Uncomment if using playback
 // --- Configuration ---
 const RECORDING_DEVICE = null; // SET THIS if needed! e.g., 'plughw:1,0'. Use 'arecord -l' to find device names.
 const INPUT_SAMPLE_RATE = 16000; // Input rate expected by Gemini
-const OUTPUT_SAMPLE_RATE = 24000; // Output rate PROVIDED BY Gemini
+const OUTPUT_SAMPLE_RATE = 24000; // <<<< Output rate PROVIDED BY Gemini (as per error msg)
 const CHANNELS = 1;
-const AUDIO_TYPE = 'raw';
-const ENCODING = 'signed-integer';
+const AUDIO_TYPE = 'raw'; // Corresponds to Linear PCM
+const ENCODING = 'signed-integer'; // Corresponds to 16-bit signed integer
 const BITS = 16;
-
-// *** TRYING audio/pcm ***
-// Note: This is less specific than audio/l16;rate=16000 and might not be accepted
-// or might be misinterpreted by the API if it cannot infer rate/bits.
-const GEMINI_INPUT_MIME_TYPE = 'audio/pcm';
-// const GEMINI_INPUT_MIME_TYPE = `audio/l16;rate=${INPUT_SAMPLE_RATE}`; // Original correct type based on API spec
+// *** IMPORTANT: This MIME type exactly matches the API's stated input requirement ***
+const GEMINI_INPUT_MIME_TYPE = `audio/l16`; // Linear16 PCM at 16kHz
 
 // Target Model and API version
-const GEMINI_MODEL = 'gemini-2.0-flash-exp';
-const API_VERSION = 'v1alpha';
+const GEMINI_MODEL = 'gemini-2.0-flash-exp'; // Experimental model
+const API_VERSION = 'v1alpha'; // Required for experimental features
 
 module.exports = NodeHelper.create({
     // --- Helper State ---
@@ -68,6 +64,7 @@ module.exports = NodeHelper.create({
     // --- Lifecycle Functions ---
     start: function() {
         this.log(`Starting node_helper...`);
+        // Reset all state variables
         this.recordingProcess = null;
         this.isRecording = false;
         this.apiInitialized = false;
@@ -76,18 +73,21 @@ module.exports = NodeHelper.create({
         this.liveSession = null;
         this.genAI = null;
         this.apiKey = null;
-        this.debug = false;
+        this.debug = false; // Ensure debug is off by default
     },
 
     // --- API Initialization ---
+    // No changes needed in initializeLiveGenAPI itself based on the error
     async initializeLiveGenAPI(apiKey) {
+        // Guard against multiple initializations
         if (this.apiInitialized || this.apiInitializing) {
             this.warn(`API initialization already complete or in progress. Initialized: ${this.apiInitialized}, Initializing: ${this.apiInitializing}`);
             if (this.connectionOpen) {
-                 this.sendToFrontend("HELPER_READY");
+                 this.sendToFrontend("HELPER_READY"); // Resend if already open
             }
             return;
         }
+        // Check for API key
         if (!apiKey) {
             this.error(`API Key is missing! Cannot initialize.`);
             this.sendToFrontend("HELPER_ERROR", { error: "API Key missing on server." });
@@ -101,7 +101,7 @@ module.exports = NodeHelper.create({
         try {
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
-                vertexai: false,
+                vertexai: false, // Set to true if using Vertex AI endpoint/key
                 systemInstruction: "You are a magical mirror assistant. Respond concisely and clearly to user audio requests. You can only respond with audio.",
                 httpOptions: { 'apiVersion': API_VERSION }
             });
@@ -180,7 +180,7 @@ module.exports = NodeHelper.create({
                     this.sendToFrontend("HELPER_ERROR", { error: "API key not provided by frontend." });
                     return;
                 }
-                this.debug = payload.debug || false;
+                this.debug = payload.debug || false; // Set debug state from frontend config
                 this.initializeLiveGenAPI(payload.apiKey);
                 break;
 
@@ -216,7 +216,7 @@ module.exports = NodeHelper.create({
         this.sendToFrontend("RECORDING_STARTED");
 
         const recorderOptions = {
-            sampleRate: INPUT_SAMPLE_RATE, // Recorder still runs at 16k
+            sampleRate: INPUT_SAMPLE_RATE, // Use constant
             channels: CHANNELS,
             audioType: AUDIO_TYPE,
             encoding: ENCODING,
@@ -235,7 +235,7 @@ module.exports = NodeHelper.create({
             audioStream.on('data', async (chunk) => {
                 const checkTime = new Date().toISOString();
                 const sessionExists = !!this.liveSession;
-                const connectionStillOpen = this.connectionOpen;
+                const connectionStillOpen = this.connectionOpen; // Use our internal state
 
                 this.debugLog(`[${checkTime}] Data chunk #${++chunkCounter} received (length: ${chunk.length}). Session exists: ${sessionExists}, ConnectionOpen: ${connectionStillOpen}`);
 
@@ -252,23 +252,28 @@ module.exports = NodeHelper.create({
                 const base64Chunk = chunk.toString('base64');
                 try {
                     const sendTime = new Date().toISOString();
+                    // +++ Add logging for the MIME type right before sending +++
                     const payloadToSend = {
                         media: {
-                            mimeType: GEMINI_INPUT_MIME_TYPE, // Using 'audio/pcm' now
+                            mimeType: GEMINI_INPUT_MIME_TYPE, // Use constant
                             data: base64Chunk
                         }
                     };
-                    // Log the MIME type being sent
-                    this.debugLog(`[${sendTime}] Attempting sendRealtimeInput for chunk #${chunkCounter}. Payload MIME Type: "${payloadToSend.media.mimeType}"`);
+                    this.debugLog(`[${sendTime}] Attempting sendRealtimeInput for chunk #${chunkCounter}. Payload MIME Type: "${payloadToSend.media.mimeType}"`); // Log the MIME type
 
-                    await this.liveSession.sendRealtimeInput(payloadToSend);
+                    await this.liveSession.sendRealtimeInput(payloadToSend); // Send the constructed payload
                     this.debugLog(`[${new Date().toISOString()}] sendRealtimeInput succeeded for chunk #${chunkCounter}.`);
                     this.sendToFrontend("AUDIO_SENT", { chunk: chunkCounter });
 
                 } catch (apiError) {
                     const errorTime = new Date().toISOString();
-                    // Log specific error for this test
-                    this.error(`[${errorTime}] Error sending audio chunk #${chunkCounter} with MIME type '${GEMINI_INPUT_MIME_TYPE}':`, apiError);
+                    // Check if the error message specifically mentions the MIME type issue again
+                    if (apiError.message?.includes("Unsupported media chunk type")) {
+                         this.error(`[${errorTime}] API Error: Still getting "Unsupported media chunk type". This suggests the issue might be deeper than just the string value.`);
+                         this.error(`Full API Error:`, apiError);
+                    } else {
+                        this.error(`[${errorTime}] Error sending audio chunk #${chunkCounter} to Gemini:`, apiError);
+                    }
                     if (apiError.stack) {
                         this.error(`Gemini send error stack:`, apiError.stack);
                     }
@@ -331,21 +336,22 @@ module.exports = NodeHelper.create({
     },
 
     // --- Stop Recording ---
+    // No changes needed in stopRecording
     stopRecording(force = false) {
         if (!this.recordingProcess) {
              this.debugLog(`stopRecording called but no recording process exists.`);
              if (this.isRecording) {
                   this.warn("State discrepancy: isRecording was true but no process found. Resetting state.");
                   this.isRecording = false;
-                  this.sendToFrontend("RECORDING_STOPPED");
+                  this.sendToFrontend("RECORDING_STOPPED"); // Notify about the stop
              }
              return;
         }
 
         if (this.isRecording || force) {
             this.log(`Stopping recording process (Forced: ${force})...`);
-            const wasRecording = this.isRecording;
-            this.isRecording = false;
+            const wasRecording = this.isRecording; // Capture state before changing
+            this.isRecording = false; // Update state immediately
 
             try {
                 const stream = this.recordingProcess.stream();
@@ -387,6 +393,8 @@ module.exports = NodeHelper.create({
 
 
     // --- Gemini Response Handling ---
+    // No changes needed in handleGeminiResponse itself for the input error
+    // It already correctly extracts audio if present.
     handleGeminiResponse(message) {
         this.log(`Received message from Gemini:`, util.inspect(message, {depth: 5}));
         let responsePayload = {
@@ -405,9 +413,9 @@ module.exports = NodeHelper.create({
             this.log(`Received audio response (base64 length: ${alternative.audio.length}).`);
             responsePayload.audio = alternative.audio;
             // --- Optional: Play Audio on the Pi ---
-            // Ensure 'require Speaker' and 'require Readable' are uncommented at the top
+            // Ensure you have uncommented 'require Speaker' and 'require Readable' at the top
             try {
-                this.playAudio(responsePayload.audio);
+                this.playAudio(responsePayload.audio); // Call the updated playback function
             } catch (playbackError) {
                 this.error("Failed to initiate audio playback:", playbackError);
             }
@@ -433,18 +441,19 @@ module.exports = NodeHelper.create({
     },
 
 
-    // --- Optional: Audio Playback Function (Still expects 24kHz Output) ---
+    // --- Optional: Audio Playback Function (UPDATED for 24kHz Output) ---
     playAudio(base64Audio) {
         if (!base64Audio) {
             this.warn("playAudio called with null/empty audio data.");
             return;
         }
-        this.log(`Attempting to play received audio at ${OUTPUT_SAMPLE_RATE} Hz...`);
+        this.log(`Attempting to play received audio at ${OUTPUT_SAMPLE_RATE} Hz...`); // Log expected rate
         try {
+            // *** Configure Speaker for the OUTPUT format ***
             const speaker = new Speaker({
-                channels: CHANNELS,
-                bitDepth: BITS,
-                sampleRate: OUTPUT_SAMPLE_RATE // Expecting 24k output from Gemini
+                channels: CHANNELS,         // Should still be 1 channel output
+                bitDepth: BITS,           // Should still be 16-bit output
+                sampleRate: OUTPUT_SAMPLE_RATE // **** USE 24000 Hz ****
             });
             speaker.on('open', () => this.log('Speaker opened for playback.'));
             speaker.on('flush', () => this.log('Speaker flushed (playback likely finished).'));
@@ -467,6 +476,7 @@ module.exports = NodeHelper.create({
 
 
     // --- Stop Helper ---
+    // No changes needed in stop
      stop: function() {
         this.log(`Stopping node_helper...`);
         this.stopRecording(true);

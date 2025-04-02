@@ -176,7 +176,7 @@ module.exports = NodeHelper.create({
             // };
 
             const blob = {
-                mimeType: 'audio/wav',
+                mimeType: 'audio/l16;rate=16000',
                 data: audiodata,
             };
 

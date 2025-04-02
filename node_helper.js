@@ -204,7 +204,7 @@ module.exports = NodeHelper.create({
             if( this.liveSession ) {
                 const inputText = payload.text
                 console.log('NodeHelper: Send text: ' + inputText)
-                this.liveSession.sendClientContent({ turns: inputText, turnComplete: true })
+                this.liveSession.sendClientContent({ turns: inputText })
                 this.sendSocketNotification("NOTIFICATION_CLEAR");
             }
         }

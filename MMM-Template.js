@@ -17,9 +17,6 @@ Module.register("MMM-Template", {
         }
     },
 
-    /**
-     * Render the page we're on.
-     */
     getDom() {
         const wrapper = document.createElement("div")
         wrapper.innerHTML = `${this.templateContent}`
@@ -74,7 +71,7 @@ Module.register("MMM-Template", {
 
 
                         mediaRecorder.addEventListener("dataavailable", event => {
-                            this.sendSocketNotification("SEND_AUDIO", chunk: event)
+                            this.sendSocketNotification("SEND_AUDIO", { chunk: event.data })
                         });
 
                          mediaRecorder.addEventListener("error", (event) => {

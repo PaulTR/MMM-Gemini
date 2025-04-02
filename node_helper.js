@@ -20,7 +20,7 @@ const ENCODING = 'signed-integer'; // Underlying format is 16-bit signed
 const BITS = 16; // Underlying format is 16-bit
 
 // *** SETTING MIME type to audio/pcm based on user confirmation ***
-const GEMINI_INPUT_MIME_TYPE = 'audio/pcm';
+const GEMINI_INPUT_MIME_TYPE = 'audio/pcm;rate=16000';
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp';

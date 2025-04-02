@@ -176,7 +176,7 @@ module.exports = NodeHelper.create({
             };
 
             if( this.liveSession ) {
-                this.liveSession.sendRealtimeInput({ media_chunks: audioPart })
+                this.liveSession.sendRealtimeInput({ media: audioPart })
                 this.sendSocketNotification("NOTIFICATION_CLEAR");
             }
         }

@@ -19,7 +19,7 @@ const AUDIO_TYPE = 'raw'; // Corresponds to Linear PCM
 const ENCODING = 'signed-integer'; // Corresponds to 16-bit signed integer
 const BITS = 16;
 // *** IMPORTANT: This MIME type exactly matches the API's stated input requirement ***
-const GEMINI_INPUT_MIME_TYPE = `audio/l16;rate=${INPUT_SAMPLE_RATE}`; // Linear16 PCM at 16kHz
+const GEMINI_INPUT_MIME_TYPE = `audio/l16`; // Linear16 PCM at 16kHz
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp'; // Experimental model

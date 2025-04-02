@@ -176,7 +176,7 @@ module.exports = NodeHelper.create({
             };
 
             if( this.liveSession ) {
-                this.liveSession.sendClientContent({ turns: audioPart, turnComplete: true })
+                this.liveSession.sendRealtimeInput({ audio: audioPart })
                 this.sendSocketNotification("NOTIFICATION_CLEAR");
             }
         }

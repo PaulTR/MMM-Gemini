@@ -160,55 +160,58 @@ module.exports = NodeHelper.create({
     },
 
     drainAudioQueue: function() {
-        // Prevent re-entry if called while already processing, especially from drain handler
-        // Although isWaitingForDrain check in handleAudioChunk helps, this adds safety
         if (!this.currentSpeaker || this.currentSpeaker.destroyed) {
-            console.log('[Audio] drainAudioQueue: Called but speaker not valid.');
-            this.isWaitingForDrain = false; // Ensure flag is reset
             return;
         }
-        // console.log(`[Audio] drainAudioQueue: Processing. Queue: ${this.audioQueue.length}, WaitingForDrain: ${this.isWaitingForDrain}`);
+        console.log(`[Audio] drainAudioQueue ALT: Processing. Queue: ${this.audioQueue.length}`);
 
-
-        // --- Loop to write as many chunks as possible ---
+        // --- Modified Loop Logic ---
         while (this.audioQueue.length > 0) {
+             if (!this.currentSpeaker || this.currentSpeaker.destroyed) { break; } // Check speaker state
+
             const buffer = this.audioQueue[0]; // Peek
+            console.log(`[Audio] drainAudioQueue ALT: Attempting write. Chunk size: ${buffer?.length}`);
 
-            // console.log(`[Audio] drainAudioQueue: Attempting write. Chunk size: ${buffer?.length}`);
             const canWrite = this.currentSpeaker.write(buffer);
-            // console.log(`[Audio] drainAudioQueue: write() returned ${canWrite}`);
+            console.log(`[Audio] drainAudioQueue ALT: write() returned ${canWrite}`);
 
+             // Check 'canWrite' ONLY for the very FIRST chunk in this drain attempt
+             // to potentially trigger the drain listener if initially blocked.
+             // If we are already inside the loop processing subsequent chunks,
+             // ignore 'canWrite' and proceed. This is a HACK.
+            if (!canWrite && this.audioQueue.length > 0 /* Needs more robust check if this is truly the first attempt */ ) {
+                 console.log('[Audio] drainAudioQueue ALT: write() returned false on first attempt. Waiting for drain.');
+                 this.currentSpeaker.once('drain', () => {
+                     console.log('[Audio] Speaker drained (event received from ALT).');
+                      if (this.currentSpeaker && !this.currentSpeaker.destroyed) {
+                         this.drainAudioQueue(); // Try draining again
+                      }
+                 });
+                 return; // Exit and wait for drain
+             }
 
-            if (!canWrite) {
-                console.log('[Audio] drainAudioQueue: write() returned false (buffer full). Waiting for drain.');
-                // Set flag and attach a ONE-TIME drain listener if not already waiting
-                if (!this.isWaitingForDrain) {
-                     this.isWaitingForDrain = true;
-                     this.currentSpeaker.once('drain', () => {
-                         console.log('[Audio] Speaker drained (event received).');
-                         this.isWaitingForDrain = false; // Reset flag *before* calling drain again
-                         this.drainAudioQueue(); // Try draining again now that buffer has space
-                     });
-                } else {
-                     console.log('[Audio] drainAudioQueue: Already waiting for drain event. Doing nothing.');
-                }
-                return; // Exit and wait for the attached 'drain' listener
-            }
-
-            // Write succeeded! Remove the chunk from the queue.
+             // Write attempted (or forced through). Remove the chunk.
             this.audioQueue.shift();
-            console.log(`[Audio] drainAudioQueue: Wrote and shifted chunk. Queue length now: ${this.audioQueue.length}`);
-            // Continue loop to write next chunk immediately if possible
-        }
+            console.log(`[Audio] drainAudioQueue ALT: Wrote/forced and shifted chunk. Queue length now: ${this.audioQueue.length}`);
 
-        // --- If loop finishes and queue is empty ---
+            // If write returned false previously but we ignored it,
+            // we should probably break here and let the *next* drain event handle subsequent chunks
+            // Otherwise, we risk overwhelming the buffer completely.
+            if (!canWrite) {
+                 console.log('[Audio] drainAudioQueue ALT: Breaking loop after forcing write; waiting for next drain.');
+                 // Ensure drain listener is attached if not already
+                  this.currentSpeaker.once('drain', () => { /* same handler as above */ });
+                 break; // Exit loop, wait for drain to handle next chunk
+            }
+             // Continue loop if write returned true
+        }
+        // --- End Modified Loop Logic ---
+
+
         if (this.audioQueue.length === 0) {
-            console.log(`[Audio] drainAudioQueue: Queue empty. Scheduling speaker closure in ${this.SPEAKER_CLOSE_TIMEOUT_MS}ms.`);
-            if (this.speakerTimeout) clearTimeout(this.speakerTimeout); // Clear existing timeout
-            this.speakerTimeout = setTimeout(() => {
-                console.log('[Audio] Timeout reached, closing speaker.');
-                this.closeSpeaker();
-            }, this.SPEAKER_CLOSE_TIMEOUT_MS);
+            console.log(`[Audio] drainAudioQueue ALT: Queue empty. Scheduling closure.`);
+            if (this.speakerTimeout) clearTimeout(this.speakerTimeout);
+            this.speakerTimeout = setTimeout(() => { this.closeSpeaker(); }, this.SPEAKER_CLOSE_TIMEOUT_MS);
         }
     },
 

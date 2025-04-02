@@ -119,7 +119,7 @@ Module.register("MMM-Template", {
         } catch (error) {
             console.error("Error sending audio:", error);
             Log.error("MMM-Template: Error sending audio: " + error); // Use MagicMirror logger
-            this.templateContent = "Error recording/sending audio.";
+            this.templateContent = "Error recording/sending audio. " + error;
             this.updateDom();
         }
     },

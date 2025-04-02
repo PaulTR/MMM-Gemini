@@ -47,7 +47,7 @@ module.exports = NodeHelper.create({
                         console.log('NodeHelper: Live Connection OPENED.');
                     },
                     onmessage: (message) => {
-                         // console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
+                         console.log("NodeHelper: Received message:", JSON.stringify(message)); // Verbose log
                          const parts = message?.serverContent?.modelTurn?.parts;
 
                          if (parts && Array.isArray(parts)) {
@@ -181,7 +181,7 @@ module.exports = NodeHelper.create({
             };
 
             if( this.liveSession ) {
-                this.liveSession.sendRealtimeInput({ media: blob })
+                this.liveSession.sendRealtimeInput({ media: blob, turnComplete: true })
                 this.sendSocketNotification("NOTIFICATION_CLEAR");
             }
         }

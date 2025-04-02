@@ -3,7 +3,7 @@
 Module.register("MMM-Template", {
     defaults: {
         exampleContent: "Initializing...",
-        apiKey: "", // Make sure apiKey is defined in your config.js
+        apikey: "", // Make sure apiKey is defined in your config.js
         recordingInterval: 7000, // Time between recordings in ms
         recordingDuration: 3000, // Duration of each recording in ms
         audioChunkTimeslice: 500, // Send audio chunk every 500ms

@@ -165,7 +165,7 @@ module.exports = NodeHelper.create({
     async socketNotificationReceived(notification, payload) {
 
         if( notification === "SEND_AUDIO" ) {
-            const audiodata = payload.audio;
+            const audiodata = payload.chunk;
             // console.log(audiodata);
 
             // const audioPart = {
@@ -177,11 +177,11 @@ module.exports = NodeHelper.create({
 
             const blob = {
                 mimeType: 'audio/pcm',
-                data: audiodata,
+                data: chunk,
             };
 
             if( this.liveSession ) {
-                this.liveSession.sendRealtimeInput({ media: blob, turnComplete: true })
+                this.liveSession.sendRealtimeInput({ media: blob })
                 this.sendSocketNotification("NOTIFICATION_CLEAR");
             }
         }

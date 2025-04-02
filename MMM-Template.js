@@ -104,16 +104,16 @@ Module.register("MMM-Template", {
             const audioData = await this.recordAudio(3000);
 
             // Convert audio data (which should be an ArrayBuffer) to base64 encoded string
-            const base64Audio = this.arrayBufferToBase64(audioData);
+            // const base64Audio = this.arrayBufferToBase64(audioData);
 
             // Send audio to node helper
-            this.sendSocketNotification("SEND_AUDIO", {
-                apikey: this.apikey,
-                audio: base64Audio,
-                // Optionally, send metadata if the backend needs it
-                encoding: 'LINEAR16',
-                sampleRateHertz: 16000
-            });
+            // this.sendSocketNotification("SEND_AUDIO", {
+            //     apikey: this.apikey,
+            //     audio: base64Audio,
+            //     // Optionally, send metadata if the backend needs it
+            //     encoding: 'LINEAR16',
+            //     sampleRateHertz: 16000
+            // });
             this.templateContent = ''
             this.updateDom()
         } catch (error) {
@@ -161,7 +161,10 @@ Module.register("MMM-Template", {
 
                     stream.on('data', (chunk) => {
                         // chunk is a Node.js Buffer
-                        audioChunks.push(chunk);
+                        // audioChunks.push(chunk);
+                      this.sendSocketNotification("SEND_AUDIO", {
+                          chunk: chunk,
+                      });
                     });
 
                     stream.on('error', (err) => {

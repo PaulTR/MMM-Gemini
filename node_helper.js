@@ -43,7 +43,6 @@ module.exports = NodeHelper.create({
 
             console.log("NodeHelper: Attempting to establish Live Connection...");
             this.liveSession = await this.genAI.live.connect({
-                // model: 'gemini-2.0-flash-exp', // This specific model might require allowlisting or use a standard one like 'gemini-1.5-flash'
                 model: 'gemini-2.0-flash-exp',
                 callbacks: {
                     onopen: () => {
@@ -79,7 +78,7 @@ module.exports = NodeHelper.create({
                     },
                     onclose: (e) => {
                         // e might be undefined or an event object on clean close
-                        console.warn('NodeHelper: Live Connection CLOSED.');
+                        console.warn('NodeHelper: Live Connection CLOSED: ' + e?.message);
                         this.liveSession = null; // Reset session on close
                         // Optionally notify frontend connection closed
                         // this.sendSocketNotification("CONNECTION_CLOSED");

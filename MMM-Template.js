@@ -1,242 +1,192 @@
-/* global Module, Log */
+/* global Module, Log, navigator, MediaRecorder, FileReader */
 
 Module.register("MMM-Template", {
-    // Default module config
     defaults: {
-        apiKey: null, // Required: Set in config.js
-        silenceThreshold: 0,
-        verboseLogging: false,
-        displayStatus: true, // Controls visibility of the status text
-        displayResponse: true, // Controls visibility of Gemini's response
-        statusUpdateInterval: 500, // How often to update the DOM smoothly (ms)
-        errorDisplayDuration: 10000, // How long to show error messages (ms) before reverting status
+        exampleContent: "Initializing...",
+        apiKey: "", // Make sure apiKey is defined in your config.js
+        recordingInterval: 7000, // Time between recordings in ms
+        recordingDuration: 3000, // Duration of each recording in ms
+        audioChunkTimeslice: 500, // Send audio chunk every 500ms
     },
 
-    // Module properties
-    apiInitialized: false,
-    isRecording: false,
-    statusText: "Loading...",
-    detailedStatus: "Waiting for config...", // More specific status for debugging
-    responseText: "",
-    lastError: null, // Store the last error object/message
-    errorTimer: null, // Timer to clear error messages
+    // Define module variables
+    templateContent: "",
+    mediaRecorder: null,
+    audioChunks: [],
+    isRecording: false, // Flag to prevent overlapping recordings
 
-    // Override start method
-    start: function() {
+    async start() {
         Log.info(`Starting module: ${this.name}`);
-        this.detailedStatus = "Checking API Key...";
+        this.templateContent = this.config.exampleContent;
         if (!this.config.apiKey) {
-            Log.error(`[${this.name}] apiKey is not set in config!`);
-            this.statusText = "Error";
-            this.detailedStatus = "API Key missing in config.js!";
-            this.lastError = { message: this.detailedStatus };
-            this.updateDom(this.config.statusUpdateInterval);
+            Log.error("MMM-Template: apiKey not set in config!");
+            this.templateContent = "Error: API Key not configured.";
+            this.updateDom();
             return;
         }
+        this.sendSocketNotification("START_CHAT", { apikey: this.config.apiKey });
 
-        this.statusText = "Initializing";
-        this.detailedStatus = "Sending Config to Helper...";
-        this.sendSocketNotification("CONFIG", this.config);
-        this.updateDom(); // Initial update
+        // Use a timer that waits for the previous operation to complete
+        this.scheduleNextRecording();
+    },
 
-        // Request API initialization after a short delay
-        setTimeout(() => {
-            Log.info(`[${this.name}] Requesting API Initialization.`);
-            this.statusText = "Initializing";
-            this.detailedStatus = "Requesting API Connection...";
-            this.sendSocketNotification("INITIALIZE_API");
+    scheduleNextRecording() {
+        // Clear any existing timer
+        if (this.recordingTimer) {
+            clearTimeout(this.recordingTimer);
+        }
+        // Schedule the next recording attempt
+        this.recordingTimer = setTimeout(async () => {
+            if (!this.isRecording) { // Only start if not already recording
+                await this.triggerAudioRecording();
+            } else {
+                Log.warn("MMM-Template: Skipping recording cycle, previous one still active.");
+            }
+            // Schedule the *next* call regardless of success/failure of current one
+            this.scheduleNextRecording();
+        }, this.config.recordingInterval);
+    },
+
+    socketNotificationReceived: function (notification, payload) {
+        if (notification === "GEMINI_RESPONSE") { // Assuming helper sends back response
+            Log.info("MMM-Template: Received response from helper.");
+            // You'll need to handle the response payload here, e.g., display text or play audio
+            this.templateContent = `Received response.`; // Placeholder
             this.updateDom();
-        }, 2000);
-    },
-
-    // Clear error status after a delay
-    clearErrorStatus: function() {
-        if (this.errorTimer) {
-            clearTimeout(this.errorTimer);
-            this.errorTimer = null;
-        }
-        this.lastError = null;
-        // Revert to a non-error status
-        if (this.isRecording) {
-             this.statusText = "Status: Listening";
-             this.detailedStatus = `Recording: Yes | API: ${this.apiInitialized ? 'Ready' : 'Error'}`;
-        } else if (this.apiInitialized) {
-             this.statusText = "Status: Ready";
-             this.detailedStatus = `Recording: No | API: Ready`;
-        } else {
-            this.statusText = "Status: Idle";
-            this.detailedStatus = `Recording: No | API: Not Initialized`;
-        }
-        this.updateDom(this.config.statusUpdateInterval);
-    },
-
-    // Set error status and schedule clearing
-    setErrorStatus: function(prefix, errorPayload) {
-         this.lastError = errorPayload || { message: 'Unknown Error' };
-         const errorMessage = this.lastError.message || JSON.stringify(this.lastError);
-         this.statusText = `Error: ${prefix}`;
-         this.detailedStatus = `${prefix} Error: ${errorMessage.substring(0, 80)}${errorMessage.length > 80 ? '...' : ''}`; // Show limited error text
-         Log.error(`[${this.name}] ${prefix} Error:`, this.lastError);
-
-         // Clear previous timer if any
-        if (this.errorTimer) {
-            clearTimeout(this.errorTimer);
-        }
-        // Set timer to clear the error display
-        this.errorTimer = setTimeout(() => {
-            this.clearErrorStatus();
-        }, this.config.errorDisplayDuration);
-
-        this.updateDom(this.config.statusUpdateInterval);
-    },
-
-
-    // Override socket notification handler
-    socketNotificationReceived: function(notification, payload) payload ? JSON.stringify(payload) : 'No Payload');
-
-        // Clear error timer if a non-error related status comes in
-        if (!notification.includes("ERROR") && this.errorTimer) {
-             // Decide if we should clear the error display immediately upon new status
-             // For now, let the timer run its course unless it's a successful status change
-        }
-
-
-        switch (notification) {
-            case "API_INITIALIZED":
-                this.apiInitialized = true;
-                this.lastError = null; // Clear previous errors
-                this.statusText = "Status: API Ready";
-                this.detailedStatus = "API Initialized. Starting Recorder...";
-                Log.info(`[${this.name}] API Initialized. Requesting START_RECORDING.`);
-                this.sendSocketNotification("START_RECORDING");
-                break;
-            case "API_ERROR":
-                this.apiInitialized = false;
-                this.isRecording = false; // Recording likely stopped or unusable
-                this.setErrorStatus("API Init", payload);
-                break;
-            case "RECORDING_STARTED":
-                this.isRecording = true;
-                this.lastError = null; // Clear previous errors
-                this.statusText = "Status: Listening";
-                this.detailedStatus = `Recording: Yes | API: ${this.apiInitialized ? 'Ready' : 'Error'}`;
-                Log.info(`[${this.name}] Recording started.`);
-                break;
-            case "RECORDING_STOPPED":
-                // This usually means an unexpected stop from the helper
-                this.isRecording = false;
-                this.statusText = "Status: Recorder Stopped";
-                this.detailedStatus = "Recorder stopped unexpectedly. Attempting restart...";
-                Log.warn(`[${this.name}] Recording stopped unexpectedly. Requesting restart.`);
-                // Attempt to restart recording after a delay
-                setTimeout(() => {
-                     if (this.apiInitialized) {
-                         this.detailedStatus = "Requesting Recorder Start...";
-                         this.sendSocketNotification("START_RECORDING");
-                     } else {
-                         this.statusText = "Error";
-                         this.detailedStatus = "Cannot restart recording: API not ready.";
-                         this.setErrorStatus("Restart Failed", {message: "API not ready"});
-                     }
-                     this.updateDom();
-                }, 5000); // Restart after 5 seconds
-                break;
-            case "RECORDER_ERROR":
-                 this.isRecording = false;
-                 this.setErrorStatus("Recorder", payload);
-                 // Consider retry logic here as well? Maybe handled by RECORDING_STOPPED?
-                 break;
-             case "GEMINI_MESSAGE": // Assuming text responses for now
-                Log.info(`[${this.name}] Received text from Gemini: ${payload?.text}`);
-                 // Keep status as listening, but update response text
-                 if (this.isRecording) {
-                     this.statusText = "Status: Listening"; // Or "Processing"?
-                     this.detailedStatus = `Recording: Yes | API: Ready | Last Msg: ${new Date().toLocaleTimeString()}`;
-                 }
-                if (payload?.text) {
-                    this.responseText = payload.text; // Store the latest response
-                }
-                break;
-            case "GEMINI_ERROR":
-                 this.setErrorStatus("Gemini", payload);
-                 // Assume connection is lost, API needs re-init
-                 this.apiInitialized = false;
-                 this.isRecording = false;
-                 // Attempt re-initialization
-                 setTimeout(() => {
-                    Log.info(`[${this.name}] Attempting to re-initialize API after Gemini error.`);
-                    this.statusText = "Re-initializing";
-                    this.detailedStatus = "Attempting API Reconnect after Error...";
-                    this.sendSocketNotification("INITIALIZE_API");
-                    this.updateDom();
-                 }, 10000); // Wait 10 seconds before retry
-                 break;
-            case "NODE_HELPER_LOG": // For relaying logs from node_helper
-                 Log.log(`[${this.name} NodeHelper] ${payload}`);
-                 // Optionally display brief log messages? Could get spammy.
-                 // this.detailedStatus = `Helper Log: ${payload.substring(0, 50)}...`;
-                 break;
-
-        }
-        // Don't update DOM immediately here if setErrorStatus was called, it already did.
-        if (!notification.includes("ERROR")) {
-             this.updateDom(this.config.statusUpdateInterval);
+        } else if (notification === "DATA_SENT") {
+            // Optionally provide feedback that a chunk was sent
+            // Log.log("MMM-Template: Audio chunk sent to helper.");
+        } else if (notification === "HELPER_ERROR") {
+            Log.error("MMM-Template: Received error from helper:", payload.error);
+            this.templateContent = `Helper Error: ${payload.error}`;
+            this.updateDom();
+        } else if (notification === "HELPER_READY") {
+            Log.info("MMM-Template: Node helper is ready and API connection is open.");
+            this.templateContent = "Ready.";
+            this.updateDom();
         }
     },
 
-    // Override dom generator
-    getDom: function() {
+    getDom() {
         const wrapper = document.createElement("div");
-        wrapper.className = "gemini-audio"; // Add a class for potential styling
-
-        // Main Status Display (controlled by config.displayStatus)
-        if (this.config.displayStatus) {
-            const statusDiv = document.createElement("div");
-            statusDiv.className = "status bright"; // Main status is bright
-
-             // Add color coding for status text
-             if (this.statusText.toLowerCase().includes("error")) {
-                 statusDiv.style.color = "red";
-             } else if (this.statusText.toLowerCase().includes("listening")) {
-                 statusDiv.style.color = "lightgreen";
-             } else if (this.statusText.toLowerCase().includes("ready")) {
-                 statusDiv.style.color = "lightblue";
-             } else {
-                  statusDiv.style.color = "white"; // Default
-             }
-
-            statusDiv.innerHTML = this.statusText; // e.g., "Status: Listening", "Error: API Init"
-            wrapper.appendChild(statusDiv);
-
-            // Detailed Status Display (always shown if displayStatus is true)
-            const detailedStatusDiv = document.createElement("div");
-            detailedStatusDiv.className = "detailed-status small dimmed"; // Smaller and dimmer
-            detailedStatusDiv.innerHTML = this.detailedStatus; // e.g., "Recording: Yes | API: Ready", "API Error: <message>"
-             if (this.lastError) {
-                 detailedStatusDiv.style.color = "orange"; // Highlight detailed status if it's showing error info
-             }
-            wrapper.appendChild(detailedStatusDiv);
-        }
-
-        // Gemini Response Display (controlled by config.displayResponse)
-        if (this.config.displayResponse && this.responseText) {
-            const responseDiv = document.createElement("div");
-            responseDiv.className = "response medium light"; // Example classes - adjust as needed
-            responseDiv.innerHTML = this.responseText; // Display the stored response text
-            wrapper.appendChild(responseDiv);
-        }
-
-        // Fallback message if nothing else is displayed
-        if (!this.config.displayStatus && !this.config.displayResponse) {
-             wrapper.innerHTML = "Gemini Audio"; // Minimal text
-             wrapper.className = "status xsmall dimmed";
-        }
-
+        wrapper.className = "mmm-template-content"; // Add a class for potential styling
+        wrapper.innerHTML = this.templateContent;
         return wrapper;
     },
 
-    // Add CSS file if needed (optional styling)
-    getStyles: function () {
-        return ["MMM-Template.css"]; // We'll create a basic CSS file
+    // Renamed from sendAudio to avoid confusion with sending chunks
+    async triggerAudioRecording() {
+        if (this.isRecording) {
+            Log.warn("MMM-Template: Recording already in progress.");
+            return;
+        }
+        this.isRecording = true; // Set recording flag
+
+        // Update UI to show recording is starting
+        this.templateContent = `<svg width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red" /></svg>`;
+        this.updateDom();
+        Log.info("MMM-Template: Starting audio recording...");
+
+        try {
+            // Record audio for the specified duration, sending chunks
+            await this.recordAndSendAudioChunks(this.config.recordingDuration, this.config.audioChunkTimeslice);
+            Log.info("MMM-Template: Recording finished.");
+            this.templateContent = 'Recording finished. Waiting...'; // Indicate recording stopped
+
+        } catch (error) {
+            console.error("MMM-Template: Error during recording process:", error);
+            Log.error("MMM-Template: Error during recording process: " + error);
+            this.templateContent = "Error: " + error.message;
+        } finally {
+            this.isRecording = false; // Reset recording flag
+            this.updateDom(); // Update DOM with final status
+        }
     },
+
+    recordAndSendAudioChunks: function (duration, timeslice) {
+        return new Promise((resolve, reject) => {
+            Log.warn("MMM-Template: Using browser MediaRecorder. Audio format might not be raw PCM 16kHz/16bit, which Gemini might require. Check API docs.");
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                return reject(new Error("MediaDevices API not supported."));
+            }
+
+            navigator.mediaDevices.getUserMedia({ audio: true }) // Changed audio: {} to audio: true
+                .then(stream => {
+                    let options = {};
+                    // Try to get a common format if possible, but defaults are often best
+                    // if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                    //     options = { mimeType: 'audio/webm;code      options = { mimeType: 'audio/ogg;codecs=opus' };
+                    // }
+                    // Log.info("MMM-Template: Using MediaRecorder options:", options);
+
+                    try {
+                        this.mediaRecorder = new MediaRecorder(stream, options);
+                    } catch (e) {
+                        Log.warn(`MMM-Template: Could not create MediaRecorder with options (${JSON.stringify(options)}), trying without: ${e}`);
+                        try {
+                           this.mediaRecorder = new MediaRecorder(stream); // Fallback
+                        } catch (fallbackError) {
+                           Log.error("MMM-Template: Failed to create MediaRecorder even with fallback.");
+                           stream.getTracks().forEach(track => track.stop()); // Stop stream tracks
+                           return reject(new Error("Failed to create MediaRecorder. " + fallbackError.message));
+                        }
+                    }
+
+                    const recorderMimeType = this.mediaRecorder.mimeType; // Get the actual MIME type
+                    Log.info(`MMM-Template: MediaRecorder created with MIME type: ${recorderMimeType}`);
+
+                    this.mediaRecorder.addEventListener("dataavailable", event => {
+                        if (event.data.size > 0) {
+                            // Convert Blob to Base64 and send
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                // result contains the Base64 string prefixed with data:mime/type;base64,
+                                const base64AudioData = reader.result.split(',')[1]; // Get only the base64 part
+                                this.sendSocketNotification("SEND_AUDIO", {
+                                    mimeType: recorderMimeType, // Send the actual mimeType
+                                    audioData: base64AudioData
+                                });
+                            };
+                            reader.onerror = (err) => {
+                                Log.error("MMM-Template: FileReader error:", err);
+                                // Don't reject the main promise here, just log the error for the chunk
+                            };
+                            reader.readAsDataURL(event.data);
+                        } else {
+                            Log.warn("MMM-Template: Received empty audio chunk.");
+                        }
+                    });
+
+                    this.mediaRecorder.addEventListener("error", (event) => {
+                        Log.error("MMM-Template: MediaRecorder error:", event.error);
+                        stream.getTracks().forEach(track => track.stop()); // Stop stream tracks
+                        reject(new Error("MediaRecorder error: " + event.error.message));
+                    });
+
+                    this.mediaRecorder.addEventListener("stop", () => {
+                        Log.info("MMM-Template: MediaRecorder stopped.");
+                        stream.getTracks().forEach(track => track.stop()); // Clean up the stream tracks
+                        this.mediaRecorder = null; // Clean up recorder instance
+                        resolve(); // Resolve the promise when recording stops
+                    });
+
+                    // Start recording, slicing data into chunks
+                    this.mediaRecorder.start(timeslice);
+                    Log.info(`MMM-Template: MediaRecorder started, chunking every ${timeslice}ms.`);
+
+                    // Set timeout to stop recording after the specified duration
+                    setTimeout(() => {
+                        if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
+                            Log.info("MMM-Template: Stopping MediaRecorder due to duration limit.");
+                            this.mediaRecorder.stop();
+                        }
+                    }, duration);
+                })
+                .catch(error => {
+                    Log.error("MMM-Template: Error accessing microphone:", error);
+                    reject(error); // Reject the promise on microphone access error
+                });
+        });
+    }
 });

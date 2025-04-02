@@ -102,7 +102,7 @@ module.exports = NodeHelper.create({
                          // this.sendSocketNotification("CONNECTION_CLOSED", { reason: e });
                     },
                 },
-                config: { responseModalities: [Modality.TEXT, Modality.AUDIO] }, // Request both
+                config: { responseModalities: [Modality.AUDIO] },
             });
             console.log(`NodeHelper (${this.name}): live.connect called, waiting for onopen callback.`);
 

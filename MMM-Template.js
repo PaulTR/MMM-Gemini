@@ -1,192 +1,187 @@
-/* global Module, Log, navigator, MediaRecorder, FileReader */
+/* global Module, Log */
 
 Module.register("MMM-Template", {
     defaults: {
-        exampleContent: "Initializing...",
-        apiKey: "", // Make sure apiKey is defined in your config.js
-        recordingInterval: 7000, // Time between recordings in ms
-        recordingDuration: 3000, // Duration of each recording in ms
-        audioChunkTimeslice: 500, // Send audio chunk every 500ms
+        // Display content
+        statusText: "Initializing...",
+        apiKey: "", // MUST be set in config.js
+        // Trigger configuration
+        triggerInterval: 7000, // Time between recording triggers in ms (e.g., 7s)
+        recordingDuration: 3000, // How long node_helper should record in ms (e.g., 3s)
+        // Visual feedback
+        showIndicators: true,
+        idleIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="grey" /></svg>`,
+        recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="opacity" dur="1s" values="0.5;1;0.5" repeatCount="indefinite" /></circle></svg>`,
+        processingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="orange" /></svg>`, // Optional
+        lastResponsePrefix: "Mirror says: ",
     },
 
-    // Define module variables
-    templateContent: "",
-    mediaRecorder: null,
-    audioChunks: [],
-    isRecording: false, // Flag to prevent overlapping recordings
+    // --- Module State ---
+    currentState: "INITIALIZING", // INITIALIZING, IDLE, LISTENING, PROCESSING, ERROR
+    currentStatusText: "",
+    lastResponseText: "",
+    triggerTimer: null,
 
-    async start() {
+    // --- Lifecycle Functions ---
+    start() {
         Log.info(`Starting module: ${this.name}`);
-        this.templateContent = this.config.exampleContent;
+        this.currentStatusText = this.config.statusText;
+        this.currentState = "INITIALIZING";
+
         if (!this.config.apiKey) {
-            Log.error("MMM-Template: apiKey not set in config!");
-            this.templateContent = "Error: API Key not configured.";
+            Log.error(`${this.name}: apiKey not set in config! Module disabled.`);
+            this.currentStatusText = "Error: API Key missing in config.js.";
+            this.currentState = "ERROR";
             this.updateDom();
-            return;
+            return; // Stop initialization
         }
+
+        // Send API key to helper immediately
         this.sendSocketNotification("START_CHAT", { apikey: this.config.apiKey });
 
-        // Use a timer that waits for the previous operation to complete
-        this.scheduleNextRecording();
+        // Wait for helper to be ready before starting the trigger loop
+        // The HELPER_READY notification will call scheduleNextTrigger()
+        this.updateDom();
     },
 
-    scheduleNextRecording() {
-        // Clear any existing timer
-        if (this.recordingTimer) {
-            clearTimeout(this.recordingTimer);
-        }
-        // Schedule the next recording attempt
-        this.recordingTimer = setTimeout(async () => {
-            if (!this.isRecording) { // Only start if not already recording
-                await this.triggerAudioRecording();
-            } else {
-                Log.warn("MMM-Template: Skipping recording cycle, previous one still active.");
-            }
-            // Schedule the *next* call regardless of success/failure of current one
-            this.scheduleNextRecording();
-        }, this.config.recordingInterval);
-    },
-
-    socketNotificationReceived: function (notification, payload) {
-        if (notification === "GEMINI_RESPONSE") { // Assuming helper sends back response
-            Log.info("MMM-Template: Received response from helper.");
-            // You'll need to handle the response payload here, e.g., display text or play audio
-            this.templateContent = `Received response.`; // Placeholder
-            this.updateDom();
-        } else if (notification === "DATA_SENT") {
-            // Optionally provide feedback that a chunk was sent
-            // Log.log("MMM-Template: Audio chunk sent to helper.");
-        } else if (notification === "HELPER_ERROR") {
-            Log.error("MMM-Template: Received error from helper:", payload.error);
-            this.templateContent = `Helper Error: ${payload.error}`;
-            this.updateDom();
-        } else if (notification === "HELPER_READY") {
-            Log.info("MMM-Template: Node helper is ready and API connection is open.");
-            this.templateContent = "Ready.";
-            this.updateDom();
-        }
-    },
-
+    // --- DOM Generation ---
     getDom() {
         const wrapper = document.createElement("div");
-        wrapper.className = "mmm-template-content"; // Add a class for potential styling
-        wrapper.innerHTML = this.templateContent;
+        wrapper.className = "mmm-template-wrapper";
+
+        let indicator = "";
+        if (this.config.showIndicators) {
+            switch (this.currentState) {
+                case "LISTENING":
+                    indicator = this.config.recordingIndicatorSvg;
+                    break;
+                case "PROCESSING":
+                    indicator = this.config.processingIndicatorSvg;
+                    break;
+                case "IDLE":
+                case "INITIALIZING": // Can show idle state while initializing backend
+                case "ERROR": // Show idle/grey when error occurs
+                    indicator = this.config.idleIndicatorSvg;
+                    break;
+            }
+        }
+
+        const statusDiv = document.createElement("div");
+        statusDiv.className = "status-text";
+        statusDiv.innerHTML = indicator + " " + this.currentStatusText; // Add indicator next to text
+
+        const responseDiv = document.createElement("div");
+        responseDiv.className = "response-text";
+        responseDiv.innerHTML = this.lastResponseText
+            ? `${this.config.lastResponsePrefix}${this.lastResponseText}`
+            : ""; // Only show if there's a response
+
+        wrapper.appendChild(statusDiv);
+        wrapper.appendChild(responseDiv);
+
         return wrapper;
     },
 
-    // Renamed from sendAudio to avoid confusion with sending chunks
-    async triggerAudioRecording() {
-        if (this.isRecording) {
-            Log.warn("MMM-Template: Recording already in progress.");
-            return;
+    // --- Socket Notifications ---
+    socketNotificationReceived: function (notification, payload) {
+        Log.log(`${this.name} received notification: ${notification}`); // Debug log
+
+        switch (notification) {
+            case "HELPER_READY":
+                this.currentState = "IDLE";
+                this.currentStatusText = "Ready.";
+                this.scheduleNextTrigger(); // Start the recording loop now
+                break;
+            case "RECORDING_STARTED":
+                this.currentState = "LISTENING";
+                this.currentStatusText = "Listening...";
+                this.lastResponseText = ""; // Clear previous response when starting new recording
+                break;
+            case "RECORDING_STOPPED":
+                // Could transition to PROCESSING here if desired
+                 this.currentState = "PROCESSING"; // Assume processing starts after stop
+                 this.currentStatusText = "Processing...";
+                // Or just go back to IDLE if we don't have a specific processing state
+                // this.currentState = "IDLE";
+                // this.currentStatusText = "Waiting...";
+                break;
+             case "SENDING_COMPLETE": // Optional: Notification from helper after last chunk sent
+                this.currentState = "PROCESSING";
+                this.currentStatusText = "Waiting for response...";
+                break;
+            case "GEMINI_RESPONSE":
+                this.currentState = "IDLE"; // Back to idle after getting response
+                this.currentStatusText = "Ready."; // Ready for next trigger
+                if (payload && payload.text) {
+                    this.lastResponseText = payload.text;
+                     Log.info(`${this.name} received text response: ${payload.text}`);
+                }
+                 if (payload && payload.audio) {
+                    // TODO: Handle audio playback if needed (requires browser audio API)
+                    Log.info(`${this.name} received audio response (playback not implemented).`);
+                     // Could potentially add text like "[Audio response received]"
+                     this.lastResponseText += " [Audio response]";
+                }
+                break;
+            case "HELPER_ERROR":
+                this.currentState = "ERROR";
+                this.currentStatusText = `Error: ${payload.error || 'Unknown helper error'}`;
+                Log.error(`${this.name} received error from helper: ${payload.error}`);
+                // Stop trying to trigger recordings on error
+                clearTimeout(this.triggerTimer);
+                this.triggerTimer = null;
+                break;
+            // case "DATA_SENT": // Usually too frequent to display, but useful for debugging
+            //     Log.log(`${this.name}: Node helper confirmed sending a chunk.`);
+            //     break;
         }
-        this.isRecording = true; // Set recording flag
+        this.updateDom(); // Update display after handling notification
+    },
 
-        // Update UI to show recording is starting
-        this.templateContent = `<svg width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red" /></svg>`;
-        this.updateDom();
-        Log.info("MMM-Template: Starting audio recording...");
+    // --- Custom Methods ---
+    scheduleNextTrigger() {
+        clearTimeout(this.triggerTimer); // Clear any existing timer
 
-        try {
-            // Record audio for the specified duration, sending chunks
-            await this.recordAndSendAudioChunks(this.config.recordingDuration, this.config.audioChunkTimeslice);
-            Log.info("MMM-Template: Recording finished.");
-            this.templateContent = 'Recording finished. Waiting...'; // Indicate recording stopped
-
-        } catch (error) {
-            console.error("MMM-Template: Error during recording process:", error);
-            Log.error("MMM-Template: Error during recording process: " + error);
-            this.templateContent = "Error: " + error.message;
-        } finally {
-            this.isRecording = false; // Reset recording flag
-            this.updateDom(); // Update DOM with final status
+        // Only schedule if not in an error state and helper is ready/idle
+        if (this.currentState !== "ERROR") {
+             Log.info(`${this.name}: Scheduling next recording trigger in ${this.config.triggerInterval} ms.`);
+            this.triggerTimer = setTimeout(() => {
+                this.triggerRecording();
+                // IMPORTANT: Schedule the *next* trigger *after* the current one fires
+                // This prevents drift if triggerRecording takes time.
+                // The helper manages the actual recording duration.
+                this.scheduleNextTrigger();
+            }, this.config.triggerInterval);
+        } else {
+             Log.warn(`${this.name}: Not scheduling trigger due to error state.`);
         }
     },
 
-    recordAndSendAudioChunks: function (duration, timeslice) {
-        return new Promise((resolve, reject) => {
-            Log.warn("MMM-Template: Using browser MediaRecorder. Audio format might not be raw PCM 16kHz/16bit, which Gemini might require. Check API docs.");
+    triggerRecording() {
+        // Only trigger if the system is idle (not already listening or processing)
+        // This prevents overlapping requests if interval is shorter than processing time
+        if (this.currentState === "IDLE") {
+            Log.info(`${this.name}: Triggering recording on node_helper.`);
+            this.sendSocketNotification("TRIGGER_RECORDING", {
+                duration: this.config.recordingDuration // Tell helper how long to record
+            });
+            // Update state immediately for responsiveness
+            this.currentState = "LISTENING"; // Tentative state until confirmed by helper
+            this.currentStatusText = "Starting recording...";
+            this.lastResponseText = ""; // Clear last response
+            this.updateDom();
+        } else {
+            Log.warn(`${this.name}: Skipping trigger, system is busy (${this.currentState}).`);
+        }
+    },
 
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                return reject(new Error("MediaDevices API not supported."));
-            }
+    // --- Stop ---
+    stop: function() {
+    Log.info(`Stopping module: ${this.name}`);
+    clearTimeout(this.triggerTimer);
+    this.triggerTimer = null;
+        // Optionally notify helper to clean up, though helper stop should handle it
+        // this.sendSocketNotification("STOP_HELPER_PROCESSING");
+  }
 
-            navigator.mediaDevices.getUserMedia({ audio: true }) // Changed audio: {} to audio: true
-                .then(stream => {
-                    let options = {};
-                    // Try to get a common format if possible, but defaults are often best
-                    // if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                    //     options = { mimeType: 'audio/webm;code      options = { mimeType: 'audio/ogg;codecs=opus' };
-                    // }
-                    // Log.info("MMM-Template: Using MediaRecorder options:", options);
-
-                    try {
-                        this.mediaRecorder = new MediaRecorder(stream, options);
-                    } catch (e) {
-                        Log.warn(`MMM-Template: Could not create MediaRecorder with options (${JSON.stringify(options)}), trying without: ${e}`);
-                        try {
-                           this.mediaRecorder = new MediaRecorder(stream); // Fallback
-                        } catch (fallbackError) {
-                           Log.error("MMM-Template: Failed to create MediaRecorder even with fallback.");
-                           stream.getTracks().forEach(track => track.stop()); // Stop stream tracks
-                           return reject(new Error("Failed to create MediaRecorder. " + fallbackError.message));
-                        }
-                    }
-
-                    const recorderMimeType = this.mediaRecorder.mimeType; // Get the actual MIME type
-                    Log.info(`MMM-Template: MediaRecorder created with MIME type: ${recorderMimeType}`);
-
-                    this.mediaRecorder.addEventListener("dataavailable", event => {
-                        if (event.data.size > 0) {
-                            // Convert Blob to Base64 and send
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                                // result contains the Base64 string prefixed with data:mime/type;base64,
-                                const base64AudioData = reader.result.split(',')[1]; // Get only the base64 part
-                                this.sendSocketNotification("SEND_AUDIO", {
-                                    mimeType: recorderMimeType, // Send the actual mimeType
-                                    audioData: base64AudioData
-                                });
-                            };
-                            reader.onerror = (err) => {
-                                Log.error("MMM-Template: FileReader error:", err);
-                                // Don't reject the main promise here, just log the error for the chunk
-                            };
-                            reader.readAsDataURL(event.data);
-                        } else {
-                            Log.warn("MMM-Template: Received empty audio chunk.");
-                        }
-                    });
-
-                    this.mediaRecorder.addEventListener("error", (event) => {
-                        Log.error("MMM-Template: MediaRecorder error:", event.error);
-                        stream.getTracks().forEach(track => track.stop()); // Stop stream tracks
-                        reject(new Error("MediaRecorder error: " + event.error.message));
-                    });
-
-                    this.mediaRecorder.addEventListener("stop", () => {
-                        Log.info("MMM-Template: MediaRecorder stopped.");
-                        stream.getTracks().forEach(track => track.stop()); // Clean up the stream tracks
-                        this.mediaRecorder = null; // Clean up recorder instance
-                        resolve(); // Resolve the promise when recording stops
-                    });
-
-                    // Start recording, slicing data into chunks
-                    this.mediaRecorder.start(timeslice);
-                    Log.info(`MMM-Template: MediaRecorder started, chunking every ${timeslice}ms.`);
-
-                    // Set timeout to stop recording after the specified duration
-                    setTimeout(() => {
-                        if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
-                            Log.info("MMM-Template: Stopping MediaRecorder due to duration limit.");
-                            this.mediaRecorder.stop();
-                        }
-                    }, duration);
-                })
-                .catch(error => {
-                    Log.error("MMM-Template: Error accessing microphone:", error);
-                    reject(error); // Reject the promise on microphone access error
-                });
-        });
-    }
 });

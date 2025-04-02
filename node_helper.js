@@ -140,8 +140,8 @@ module.exports = NodeHelper.create({
 
             case "TRIGGER_RECORDING":
                 // Start recording process if API is ready and not already recording
-                if (!this.apiInitialized || !this.liveSession || !this.liveSession.isOpen) {
-                    console.warn(`NodeHelper (${this.name}): Cannot record, API session not ready or open. State: Initialized=${this.apiInitialized}, SessionExists=${!!this.liveSession}, SessionOpen=${this.liveSession?.isOpen}`);
+                if (!this.apiInitialized || !this.liveSession ) {
+                    console.warn(`NodeHelper (${this.name}): Cannot record, API session not ready or open. State: Initialized=${this.apiInitialized}, SessionExists=${!!this.liveSession}`);
                     this.sendSocketNotification("HELPER_ERROR", { error: "Cannot record: API connection not ready." });
                     return;
                 }

@@ -259,7 +259,7 @@ module.exports = NodeHelper.create({
                             data: base64Chunk
                         }
                     };
-                    this.debugLog(`[${sendTime}] Attempting sendRealtimeInput for chunk #${chunkCounter}. Payload MIME Type: "${payloadToSend.media.mimeType}"`); // Log the MIME type
+                    console.error(`[${sendTime}] Attempting sendRealtimeInput for chunk #${chunkCounter}. Payload MIME Type: "${payloadToSend.media.mimeType}"`); // Log the MIME type
 
                     await this.liveSession.sendRealtimeInput(payloadToSend); // Send the constructed payload
                     this.debugLog(`[${new Date().toISOString()}] sendRealtimeInput succeeded for chunk #${chunkCounter}.`);

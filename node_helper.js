@@ -19,8 +19,6 @@ module.exports = NodeHelper.create({
     audioQueue: [],
     isPlaying: false,
 
-    initializeGenAI: function(apiKey) {
-
     async initializeLiveGenAPI(apiKey) {
         if( !this.liveSession ) {
             if(!this.genAI) {

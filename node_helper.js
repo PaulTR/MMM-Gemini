@@ -12,7 +12,7 @@ const { Readable } = require('stream'); // Uncomment if using playback
 
 // --- Configuration ---
 const RECORDING_DEVICE = null; // SET THIS if needed! e.g., 'plughw:1,0'. Use 'arecord -l' to find device names.
-const INPUT_SAMPLE_RATE = 44100; // Recorder captures at 16kHz
+const INPUT_SAMPLE_RATE = 44100; // Recorder captures at 44.1KHz for AT2020, otherwise 16000 for other microphones
 const OUTPUT_SAMPLE_RATE = 24000; // Gemini outputs at 24kHz
 const CHANNELS = 1;
 const AUDIO_TYPE = 'raw'; // Underlying format is raw PCM
@@ -271,9 +271,31 @@ module.exports = NodeHelper.create({
                     const payloadToSend = {
                         media: {
                             mimeType: GEMINI_INPUT_MIME_TYPE,
-                            data: base64Chunk
+                            data: base64Chunk // Note: This base64 string will be very long
                         }
                     };
+
+                    // ************************************************
+                    // *** ADDED LINE TO PRINT THE PAYLOAD OBJECT ***
+                    // ************************************************
+                    // Using JSON.stringify for pretty printing. null, 2 adds indentation.
+                    // Be aware: This will print the *entire* base64 audio chunk data,
+                    // which can make your logs very verbose.
+                    this.log(`[${sendTime}] Sending Payload JSON to Gemini:`, JSON.stringify(payloadToSend, null, 2));
+                    // ************************************************
+
+                    // --- Optional: Less Verbose Logging (prints structure but not full data) ---
+                    /*
+                    this.log(`[${sendTime}] Sending Payload Structure to Gemini:`, JSON.stringify({
+                        media: {
+                            mimeType: payloadToSend.media.mimeType,
+                            dataLength: base64Chunk.length // Log length instead of data
+                        }
+                    }, null, 2));
+                    */
+                    // --- End Optional ---
+
+
                     this.debugLog(`[${sendTime}] Attempting sendRealtimeInput for chunk #${++chunkCounter} (length: ${chunk.length}). Payload MIME Type: "${payloadToSend.media.mimeType}"`);
 
                     await this.liveSession.sendRealtimeInput(payloadToSend);
@@ -294,38 +316,6 @@ module.exports = NodeHelper.create({
                     this.sendToFrontend("HELPER_ERROR", { error: `API send error: ${apiError.message}` });
                     this.stopRecording(true); // Force stop recording on send error
                 }
-            });
-
-            audioStream.on('error', (err) => {
-                this.error(`Recording stream error:`, err);
-                if (err.stack) {
-                    this.error(`Recording stream error stack:`, err.stack);
-                }
-                this.sendToFrontend("HELPER_ERROR", { error: `Audio recording stream error: ${err.message}` });
-                this.stopRecording(true); // Force stop on stream error
-            });
-
-             audioStream.on('end', () => {
-                 // This might happen if the underlying 'arecord' process ends for some reason
-                 this.warn(`Recording stream ended unexpectedly. Total chunks processed: ${chunkCounter}`);
-                 if (this.isRecording) {
-                      this.error("Recording stream ended while isRecording was still true. Likely an issue with the recording process.");
-                      this.sendToFrontend("HELPER_ERROR", { error: "Recording stream ended unexpectedly." });
-                      this.stopRecording(true); // Ensure cleanup
-                 }''
-             });
-
-            this.recordingProcess.process.on('exit', (code, signal) => {
-                 // This is a more definitive end of the recording process
-                 this.warn(`Recording process exited with code ${code}, signal ${signal}.`);
-                 if (this.isRecording) {
-                    this.error(`Recording process exited unexpectedly while isRecording was true.`);
-                    this.sendToFrontend("HELPER_ERROR", { error: `Recording process stopped unexpectedly (code: ${code}, signal: ${signal})` });
-                    this.stopRecording(true); // Ensure cleanup and state reset
-                 } else {
-                     this.debugLog(`Recording process exited after recording was stopped intentionally.`);
-                 }
-                 this.recordingProcess = null; // Ensure reference is cleared
             });
 
             // *** REMOVED setTimeout to stop recording automatically ***

@@ -505,7 +505,7 @@ module.exports = NodeHelper.create({
             // });
 
             const speaker = new Speaker({
-                channels: CHANNELS, bitDepth: BITS, sampleRate: OUTPUT_SAMPLE_RATE,
+                channels: CHANNELS, bitDepth: BITS, sampleRate: OUTPUT_SAMPLE_RATE, device: 'plughw:1,0'
             });
             speaker.on('open', () => this.debugLog('Speaker opened for playback.'));
             speaker.on('flush', () => this.debugLog('Speaker flushed.')); // Less verbose

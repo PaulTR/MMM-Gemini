@@ -18,7 +18,7 @@ const CHANNELS = 1;
 const AUDIO_TYPE = 'raw'; // Underlying format is raw PCM
 const ENCODING = 'signed-integer'; // Underlying format is 16-bit signed
 const BITS = 16; // Underlying format is 16-bit
-const GEMINI_INPUT_MIME_TYPE = 'audio/pcm'; // Confirmed MIME type
+const GEMINI_INPUT_MIME_TYPE = 'audio/pcm;rate=44100'; // Confirmed MIME type
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp';
@@ -281,7 +281,7 @@ module.exports = NodeHelper.create({
                     // Using JSON.stringify for pretty printing. null, 2 adds indentation.
                     // Be aware: This will print the *entire* base64 audio chunk data,
                     // which can make your logs very verbose.
-                    this.log(`[${sendTime}] Sending Payload JSON to Gemini:`, JSON.stringify(payloadToSend, null, 2));
+                    // this.log(`[${sendTime}] Sending Payload JSON to Gemini:`, JSON.stringify(payloadToSend, null, 2));
                     // ************************************************
 
                     // --- Optional: Less Verbose Logging (prints structure but not full data) ---

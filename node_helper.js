@@ -19,6 +19,7 @@ const AUDIO_TYPE = 'raw'; // Underlying format is raw PCM
 const ENCODING = 'signed-integer'; // Underlying format is 16-bit signed
 const BITS = 16; // Underlying format is 16-bit
 const GEMINI_INPUT_MIME_TYPE = 'audio/pcm;rate=44100'; // Confirmed MIME type
+const SPEAKER_OUTPUT_DELAY = 10
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp';
@@ -410,7 +411,7 @@ module.exports = NodeHelper.create({
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
         // Log the raw message structure for easier debugging
-        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
+        // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
         this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
 
         let responsePayload = {
@@ -457,7 +458,7 @@ module.exports = NodeHelper.create({
 
         // --- Prompt Feedback Handling ---
          if (message?.response?.promptFeedback) {
-             this.warn(`Prompt feedback received:`, JSON.stringify(message.response.promptFeedback, null, 2));
+             // this.warn(`Prompt feedback received:`, JSON.stringify(message.response.promptFeedback, null, 2));
              responsePayload.feedback = message.response.promptFeedback;
              if (message.response.promptFeedback.blockReason) {
                  this.error(`Response blocked by API. Reason: ${message.response.promptFeedback.blockReason}`);
@@ -511,7 +512,7 @@ module.exports = NodeHelper.create({
             this.isPlayingAudio = false;
             this.debugLog("isPlayingAudio set to false (error calling playAudio from queue)");
             // Try to play the *next* item in case this one failed immediately
-            setTimeout(() => this.playNextInQueue(), 50); // Small delay
+            setTimeout(() => this.playNextInQueue(), SPEAKER_OUTPUT_DELAY); // Small delay
         }
     },
 

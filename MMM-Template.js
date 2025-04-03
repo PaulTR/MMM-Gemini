@@ -1,30 +1,29 @@
-/* global Module, Log */
-
+/* global Module, Log, Buffer */ // Added Buffer for potential browser audio playback later
 
 Module.register("MMM-Template", {
   defaults: {
     // Display content
     statusText: "Initializing...",
     apiKey: "", // MUST be set in config.js
-    // Trigger configuration
-    triggerInterval: 7000, // Time between recording triggers in ms (e.g., 7s). Must be longer than recordingDuration.
-    recordingDuration: 3000, // How long node_helper should record in ms (e.g., 3s).
+    // --- REMOVED triggerInterval and recordingDuration ---
     // Visual feedback
     showIndicators: true,
-    idleIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="grey" /></svg>`,
-    recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="opacity" dur="1s" values="0.5;1;0.5" repeatCount="indefinite" /></circle></svg>`,
-    processingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="orange"><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="2s" repeatCount="indefinite"/></svg>`, // Rotating orange
+    // Simplified indicators
+    initializingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="grey" /><circle cx="50" cy="50" r="30" fill="white" /><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite"/></svg>`, // Spinning ring
+    recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="r" dur="1.2s" values="35;40;35" repeatCount="indefinite" /></circle></svg>`, // Pulsing red circle
     errorIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#333" /><line x1="30" y1="30" x2="70" y2="70" stroke="red" stroke-width="10" /><line x1="70" y1="30" x2="30" y2="70" stroke="red" stroke-width="10" /></svg>`, // Red X on dark grey
+    // --- REMOVED processingIndicatorSvg ---
     lastResponsePrefix: "Mirror says: ",
-    debug: false, // Set to true for more verbose logging in the browser console
+    debug: false, // Set to true for more verbose logging
   },
 
   // --- Module State ---
-  currentState: "INITIALIZING", // INITIALIZING, IDLE, LISTENING, PROCESSING, ERROR
+  // Simplified States: INITIALIZING, READY, RECORDING, ERROR, SHUTDOWN
+  currentState: "INITIALIZING",
   currentStatusText: "",
-  lastResponseText: "", // Stores text representation, even for audio
-  triggerTimer: null,
+  lastResponseText: "", // Stores text representation or indicator for audio
   helperReady: false,
+  // --- REMOVED triggerTimer ---
 
   // --- Lifecycle Functions ---
   start() {
@@ -32,6 +31,7 @@ Module.register("MMM-Template", {
     this.currentStatusText = this.config.statusText;
     this.currentState = "INITIALIZING";
     this.helperReady = false;
+    this.lastResponseText = "";
 
     if (!this.config.apiKey) {
       Log.error(`${this.name}: apiKey not set in config! Module disabled.`);
@@ -47,7 +47,7 @@ Module.register("MMM-Template", {
             debug: this.config.debug // Pass debug flag to helper
         });
 
-    // We wait for the HELPER_READY notification before scheduling the first trigger.
+    // Update DOM to show "Initializing..."
     this.updateDom();
   },
 
@@ -59,31 +59,38 @@ Module.register("MMM-Template", {
     let indicator = "";
     if (this.config.showIndicators) {
       switch (this.currentState) {
-        case "LISTENING":
+        case "INITIALIZING":
+        case "READY": // Show initializing briefly while telling helper to start
+            indicator = this.config.initializingIndicatorSvg;
+            break;
+        case "RECORDING":
           indicator = this.config.recordingIndicatorSvg;
-          break;
-        case "PROCESSING":
-          indicator = this.config.processingIndicatorSvg;
           break;
         case "ERROR":
             indicator = this.config.errorIndicatorSvg;
             break;
-        case "IDLE":
-        case "INITIALIZING": // Can show idle state while initializing backend
-        default:
-          indicator = this.config.idleIndicatorSvg;
+        // case "PROCESSING": // Removed state
+        // case "LISTENING": // Replaced by RECORDING
+        case "SHUTDOWN": // Optional: show nothing or idle indicator
+             indicator = ""; // Or this.config.idleIndicatorSvg if defined
+             break;
+        default: // Should not happen often
+          indicator = this.config.errorIndicatorSvg; // Show error on unknown state
           break;
       }
     }
 
     const statusDiv = document.createElement("div");
     statusDiv.className = "status-indicator bright"; // Added MM classes
+    statusDiv.style.display = "inline-block"; // Keep indicator inline
+    statusDiv.style.verticalAlign = "middle"; // Align indicator vertically
     statusDiv.innerHTML = indicator;
 
         const textDiv = document.createElement("div");
         textDiv.className = "status-text";
         textDiv.style.marginLeft = "10px"; // Space between indicator and text
         textDiv.style.display = "inline-block"; // Keep text next to indicator
+        textDiv.style.verticalAlign = "middle"; // Align text vertically
 
     const currentStatusSpan = document.createElement("div");
     currentStatusSpan.className = "current-status bright";
@@ -92,15 +99,23 @@ Module.register("MMM-Template", {
     const responseSpan = document.createElement("div");
     responseSpan.className = "response-text small dimmed"; // Added MM classes
     responseSpan.style.marginTop = "5px"; // Space above response text
-    responseSpan.innerHTML = this.lastResponseText
-      ? `${this.config.lastResponsePrefix}${this.lastResponseText}`
-      : ""; // Only show if there's a response
+    // Show response only if not initializing/erroring and there is text
+    if ((this.currentState === "RECORDING") && this.lastResponseText) {
+       responseSpan.innerHTML = `${this.config.lastResponsePrefix}${this.lastResponseText}`;
+    } else {
+       responseSpan.innerHTML = "";
+    }
+
 
         textDiv.appendChild(currentStatusSpan);
         textDiv.appendChild(responseSpan);
 
-    wrapper.appendChild(statusDiv);
-        wrapper.appendChild(textDiv);
+    // Append indicator only if it's not empty
+    if (indicator) {
+       wrapper.appendChild(statusDiv);
+    }
+    wrapper.appendChild(textDiv);
+
 
     return wrapper;
   },
@@ -117,136 +132,101 @@ Module.register("MMM-Template", {
 
     switch (notification) {
       case "HELPER_READY":
-                if (!this.helperReady) { // Prevent multiple initializations of the timer
-                    Log.info(`${this.name}: Helper is ready and connection is open.`);
+                if (!this.helperReady) { // Prevent multiple triggers
+                    Log.info(`${this.name}: Helper is ready. Requesting continuous recording start.`);
                     this.helperReady = true;
-                    this.currentState = "IDLE";
-                    this.currentStatusText = "Ready.";
-                    this.scheduleNextTrigger(); // Start the recording loop now that the helper confirmed readiness
+                    this.currentState = "READY"; // Transient state
+                    this.currentStatusText = "Starting microphone...";
+                    this.lastResponseText = ""; // Clear response on ready
+                    this.updateDom(); // Show status update
+                    // *** Tell helper to start recording ***
+                    this.sendSocketNotification("START_CONTINUOUS_RECORDING");
                 } else {
-                     Log.warn(`${this.name}: Received duplicate HELPER_READY notification.`);
+                     Log.warn(`${this.name}: Received duplicate HELPER_READY notification. Ignored.`);
                 }
         break;
       case "RECORDING_STARTED":
-        this.currentState = "LISTENING";
+        Log.info(`${this.name}: Continuous recording confirmed by helper.`);
+        this.currentState = "RECORDING";
         this.currentStatusText = "Listening...";
-        this.lastResponseText = ""; // Clear previous response when starting new recording
+        // Do not clear last response here, allow it to persist until next response
         break;
       case "RECORDING_STOPPED":
-        // Transition to PROCESSING immediately after recording stops
-                // This state remains until a response or error occurs
-        this.currentState = "PROCESSING";
-        this.currentStatusText = "Processing audio...";
-        break;
-            case "AUDIO_SENT": // Helper confirms audio chunk was sent
-                 if (this.currentState === "LISTENING") { // Should transition after last chunk
-                      this.currentState = "PROCESSING";
-                      this.currentStatusText = "Waiting for response...";
-                 }
-                 // Optionally update DOM or log for debugging
-                 // Log.log(`${this.name}: Helper confirmed sending audio chunk.`);
-                 break;
-      case "GEMINI_RESPONSE":
-        this.currentState = "IDLE"; // Back to idle after getting response
-        this.currentStatusText = "Ready."; // Ready for next trigger
-        if (payload && payload.text) { // Check if helper provided transcribed text
-          this.lastResponseText = payload.text;
-          Log.info(`${this.name} received text transcription: ${payload.text}`);
-        } else if (payload && payload.audio) {
-                     // Indicate that audio was received, even if not playing it here
-                     this.lastResponseText = "[Audio response received]";
-           Log.info(`${this.name} received audio response (playback handled by helper or external).`);
-                     // If you wanted to play audio in the browser (less common for MM):
-                     // const audioBlob = new Blob([Buffer.from(payload.audio, 'base64')], { type: 'audio/l16;rate=16000' }); // Adjust MIME type if needed
-                     // const audioUrl = URL.createObjectURL(audioBlob);
-                     // const audio = new Audio(audioUrl);
-                     // audio.play();
-        } else {
-                    this.lastResponseText = "[Empty or unknown response]";
-                     Log.warn(`${this.name} received GEMINI_RESPONSE notification but no text or audio payload.`);
+                // This usually means an error occurred, unless we are stopping the module
+                if (this.currentState !== "SHUTDOWN") {
+                    Log.warn(`${this.name}: Recording stopped unexpectedly.`);
+                    this.currentState = "ERROR"; // Assume error if stopped unexpectedly
+                    this.currentStatusText = "Mic stopped. Check logs.";
+                    this.helperReady = false; // Assume connection needs reset
+                } else {
+                    Log.info(`${this.name}: Recording stopped as part of shutdown.`);
                 }
-                // IMPORTANT: Schedule the next trigger AFTER processing the response
-                this.scheduleNextTrigger();
+        break;
+            // case "AUDIO_SENT": // Removed - not needed for UI state
+                 // if (this.config.debug) Log.log(`${this.name}: Helper sent audio chunk.`);
+                 // break;
+      case "GEMINI_RESPONSE":
+                // Stay in RECORDING state, just update the text
+                if (this.currentState !== "RECORDING") {
+                     Log.warn(`${this.name}: Received Gemini response while not in RECORDING state (${this.currentState}). Updating text anyway.`);
+                }
+        if (payload && (payload.text || payload.audio || payload.feedback)) {
+                     if (payload.text) {
+                         this.lastResponseText = payload.text;
+                         Log.info(`${this.name} received text: ${payload.text}`);
+                     } else if (payload.audio) {
+                         this.lastResponseText = "[Audio response received]";
+                         Log.info(`${this.name} received audio response.`);
+                         // Optional: Browser audio playback (less likely needed for MM)
+                         // try {
+                         //     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                         //     const buffer = Buffer.from(payload.audio, 'base64');
+                         //     // Assuming raw PCM S16LE at 24kHz from helper/Gemini
+                         //     // This requires careful buffer manipulation to make playable in browser
+                         //     // It's generally easier to let the helper handle playback via Speaker
+                         // } catch (e) {
+                         //     Log.error(`${this.name}: Error playing audio in browser:`, e);
+                         // }
+                     } else if (payload.feedback) {
+                         // Display feedback if no other text/audio was provided
+                          const reason = payload.feedback.blockReason || "Unknown feedback";
+                          this.lastResponseText = `[Feedback: ${reason}]`;
+                          Log.warn(`${this.name} received prompt feedback: ${reason}`);
+                     }
+                } else {
+                    this.lastResponseText = "[Empty response]";
+                     Log.warn(`${this.name}: Received GEMINI_RESPONSE notification but no actionable payload.`);
+                }
+                // *** DO NOT schedule next trigger - recording is continuous ***
         break;
       case "HELPER_ERROR":
         this.currentState = "ERROR";
         this.currentStatusText = `Error: ${payload.error || 'Unknown helper error'}`;
         Log.error(`${this.name} received error from helper: ${payload.error}`);
                 this.helperReady = false; // Assume connection needs reset
-        // Stop trying to trigger recordings on error
-        clearTimeout(this.triggerTimer);
-        this.triggerTimer = null;
+                this.lastResponseText = ""; // Clear response on error
         break;
             case "HELPER_LOG": // For receiving debug logs from helper
                 Log.log(`NodeHelper (${this.name}): ${payload}`);
                 break;
-
     }
-    this.updateDom(); // Update display after handling notification
+    // Update display after handling any notification
+    this.updateDom();
   },
 
-  // --- Custom Methods ---
-  scheduleNextTrigger() {
-    clearTimeout(this.triggerTimer); // Clear any existing timer
-
-    // Only schedule if helper is ready and we are currently idle
-    if (this.helperReady && this.currentState === "IDLE") {
-      if (this.config.debug) {
-                Log.log(`${this.name}: Scheduling next recording trigger in ${this.config.triggerInterval} ms.`);
-            }
-      this.triggerTimer = setTimeout(() => {
-                // Trigger only if still IDLE when timer fires
-                if (this.currentState === "IDLE") {
-            this.triggerRecording();
-                } else {
-                     Log.warn(`${this.name}: Timer fired, but system was not IDLE (${this.currentState}). Skipping trigger.`);
-                     // Reschedule immediately if we missed the window due to being busy
-                     this.scheduleNextTrigger();
-                }
-      }, this.config.triggerInterval);
-    } else {
-      if (!this.helperReady) {
-                Log.warn(`${this.name}: Not scheduling trigger, helper not ready.`);
-            }
-            if (this.currentState !== "IDLE") {
-                 if (this.config.debug) Log.log(`${this.name}: Not scheduling trigger, current state is ${this.currentState}`);
-            }
-             if (this.currentState === "ERROR") {
-                 Log.error(`${this.name}: Not scheduling trigger due to ERROR state.`);
-             }
-    }
-  },
-
-  triggerRecording() {
-        // Double check state just before sending notification
-    if (this.helperReady && this.currentState === "IDLE") {
-      Log.info(`${this.name}: Triggering recording on node_helper for ${this.config.recordingDuration}ms.`);
-      this.sendSocketNotification("TRIGGER_RECORDING", {
-        duration: this.config.recordingDuration // Tell helper how long to record
-      });
-      // Update state immediately for responsiveness
-      this.currentState = "LISTENING"; // Assume listening will start
-      this.currentStatusText = "Triggering...";
-      this.lastResponseText = ""; // Clear last response
-      this.updateDom();
-            // Do NOT reschedule trigger here - reschedule happens after response or if trigger skipped
-    } else {
-      Log.warn(`${this.name}: Skipping trigger recording call. Helper Ready: ${this.helperReady}, State: ${this.currentState}`);
-            // If we skipped because we weren't idle, reschedule to try again later
-            if (this.helperReady && this.currentState !== "IDLE") {
-                 this.scheduleNextTrigger();
-            }
-    }
-  },
+  // --- REMOVED Custom Methods ---
+  // scheduleNextTrigger() - Removed
+  // triggerRecording() - Removed
 
   // --- Stop ---
   stop: function() {
     Log.info(`Stopping module: ${this.name}`);
-    clearTimeout(this.triggerTimer);
-    this.triggerTimer = null;
-        this.helperReady = false;
-        this.currentState = "SHUTDOWN"; // Use a distinct state if needed
-        // Notify helper to clean up
+    this.currentState = "SHUTDOWN";
+    this.currentStatusText = "Shutting down...";
+    this.helperReady = false;
+    this.updateDom(); // Show shutting down state
+
+        // Notify helper to clean up its resources (stop recording, close connection)
         Log.info(`${this.name}: Sending STOP_CONNECTION notification.`);
     this.sendSocketNotification("STOP_CONNECTION");
   }

@@ -1,4 +1,4 @@
-/* node_helper.js - Continuous Streaming Version with Playback Lock */
+/* node_helper.js - Continuous Streaming Version with Playback Queue */
 
 const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality } = require("@google/genai");
@@ -31,7 +31,8 @@ module.exports = NodeHelper.create({
     apiKey: null,
     recordingProcess: null,
     isRecording: false,
-    isPlayingAudio: false, // Flag to prevent concurrent playback
+    isPlayingAudio: false, // Flag to prevent concurrent playback START
+    audioQueue: [],      // Queue for pending audio playback data
     apiInitialized: false,
     connectionOpen: false,
     apiInitializing: false,
@@ -67,6 +68,7 @@ module.exports = NodeHelper.create({
         this.recordingProcess = null;
         this.isRecording = false;
         this.isPlayingAudio = false; // Initialize flag
+        this.audioQueue = [];      // Initialize queue
         this.apiInitialized = false;
         this.connectionOpen = false;
         this.apiInitializing = false;
@@ -78,6 +80,7 @@ module.exports = NodeHelper.create({
 
     // --- API Initialization ---
     async initializeLiveGenAPI(apiKey) {
+        // ... (API initialization logic remains the same) ...
         if (this.apiInitialized || this.apiInitializing) {
             this.warn(`API initialization already complete or in progress. Initialized: ${this.apiInitialized}, Initializing: ${this.apiInitializing}`);
             if (this.connectionOpen) {
@@ -129,7 +132,8 @@ module.exports = NodeHelper.create({
                         this.apiInitialized = false;
                         this.liveSession = null;
                         this.stopRecording(true); // Stop recording on connection error
-                        this.isPlayingAudio = false; // Ensure playback flag is reset on connection error
+                        this.isPlayingAudio = false; // Ensure playback flag is reset
+                        this.audioQueue = []; // Clear queue on error
                         this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${errorMessage}` });
                     },
                     onclose: (e) => {
@@ -141,7 +145,8 @@ module.exports = NodeHelper.create({
                         this.apiInitialized = false;
                         this.liveSession = null;
                         this.stopRecording(true); // Stop recording if connection closes
-                        this.isPlayingAudio = false; // Ensure playback flag is reset on connection close
+                        this.isPlayingAudio = false; // Ensure playback flag is reset
+                        this.audioQueue = []; // Clear queue on close
                         if (wasOpen) {
                             this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly.` });
                         } else {
@@ -163,7 +168,8 @@ module.exports = NodeHelper.create({
             this.apiInitialized = false;
             this.connectionOpen = false;
             this.apiInitializing = false;
-            this.isPlayingAudio = false; // Ensure flag is reset on init error
+            this.isPlayingAudio = false; // Ensure flag is reset
+            this.audioQueue = []; // Clear queue
             this.sendToFrontend("HELPER_ERROR", { error: `API Initialization failed: ${error.message || error}` });
         }
     },
@@ -171,6 +177,7 @@ module.exports = NodeHelper.create({
 
     // --- Socket Notification Handler ---
     socketNotificationReceived: async function(notification, payload) {
+        // ... (socket notification handling remains the same) ...
         this.debugLog(`Received notification: ${notification}`, payload || "");
 
         switch (notification) {
@@ -210,6 +217,7 @@ module.exports = NodeHelper.create({
 
     // --- Audio Recording (Continuous) ---
     startRecording() {
+        // ... (startRecording logic remains the same) ...
         this.log(`Starting continuous recording...`);
         if (this.isRecording) {
             this.warn("startRecording called but already recording.");
@@ -335,6 +343,7 @@ module.exports = NodeHelper.create({
 
     // --- Stop Recording ---
     stopRecording(force = false) {
+        // ... (stopRecording logic remains the same) ...
         if (!this.recordingProcess) {
              this.debugLog(`stopRecording called but no recording process instance exists.`);
              if (this.isRecording) {
@@ -400,9 +409,9 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        // Log the raw message structure for easier debugging of different formats
+        // Log the raw message structure for easier debugging
         this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
-        this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5})); // Keep detailed debug log if needed
+        this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
 
         let responsePayload = {
              text: null, audio: null, feedback: null
@@ -410,45 +419,35 @@ module.exports = NodeHelper.create({
 
         if (message?.setupComplete) {
             this.log("Received setupComplete message from Gemini (ignoring for playback).");
-            return; // Ignore this message type for UI updates
+            return;
         }
 
-        // --- NEW EXTRACTION LOGIC based on serverContent structure ---
+        // --- Extract Audio Data ---
         let extractedAudioData = null;
         try {
-            // Navigate the new structure safely using optional chaining
             extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
         } catch (e) {
              this.error("Error trying to access audio data in serverContent structure:", e);
-             // Keep extractedAudioData as null
         }
 
-        // --- Check if audio data was found in the NEW structure ---
+        // --- Queue Audio Data if Found ---
         if (extractedAudioData) {
-            this.log(`Extracted audio response from serverContent.modelTurn (base64 length: ${extractedAudioData.length}).`);
-            responsePayload.audio = extractedAudioData; // Store for potential frontend use
+            this.log(`Extracted audio data (length: ${extractedAudioData.length}). Adding to queue.`);
+            responsePayload.audio = extractedAudioData; // Keep for sending to frontend
 
-            // --- Check playback lock BEFORE calling playAudio ---
-            if (this.isPlayingAudio) {
-                this.warn("Audio playback skipped: Player busy with previous response.");
-            } else {
-                // --- Play Audio on the Pi (only if not already playing) ---
-                 try {
-                     this.playAudio(responsePayload.audio); // Pass the extracted data directly
-                 } catch (playbackError) {
-                     this.error("Failed to initiate audio playback call:", playbackError);
-                     // Ensure flag is reset if playAudio call itself throws sync error (unlikely but safe)
-                     this.isPlayingAudio = false;
-                 }
-            }
-            // --- End check ---
+            // *** ADD TO QUEUE ***
+            this.audioQueue.push(extractedAudioData);
+            this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
+
+            // *** ATTEMPT TO PLAY FROM QUEUE ***
+            this.playNextInQueue();
 
         } else {
-             // --- If not found in NEW structure, log a warning ---
+             // --- Log warning if audio not found ---
              this.warn(`Received Gemini message but found no 'audio' data in the expected 'serverContent.modelTurn.parts[0].inlineData.data' location.`);
              this.debugLog("Full message for no-audio case:", util.inspect(message, {depth: 5}));
 
-             // Check if there was text in the *old* structure (less likely if format changed)
+             // Check for text in the *old* structure (less likely now)
              const oldAlternative = message?.response?.results?.[0]?.alternatives?.[0];
              if (oldAlternative?.text) {
                   this.warn(`Received TEXT response unexpectedly in OLD structure: "${oldAlternative.text}"`);
@@ -456,7 +455,7 @@ module.exports = NodeHelper.create({
              }
         }
 
-        // --- Prompt Feedback Handling (This part seems independent and should remain) ---
+        // --- Prompt Feedback Handling ---
          if (message?.response?.promptFeedback) {
              this.warn(`Prompt feedback received:`, JSON.stringify(message.response.promptFeedback, null, 2));
              responsePayload.feedback = message.response.promptFeedback;
@@ -464,94 +463,127 @@ module.exports = NodeHelper.create({
                  this.error(`Response blocked by API. Reason: ${message.response.promptFeedback.blockReason}`);
                  responsePayload.text = `[Response blocked: ${message.response.promptFeedback.blockReason}]`;
                  responsePayload.audio = null;
-                 this.isPlayingAudio = false; // Ensure playback stops if it somehow started before block check
+                 // If blocked, maybe clear the queue too? Or just let existing items play out?
+                 // For now, let's not clear the queue here, just prevent adding new blocked audio.
              }
          }
 
          // --- Send extracted info (if any) to Frontend ---
+         // We send even if audio was just queued, so frontend knows *something* was received
         if (responsePayload.audio || responsePayload.text || responsePayload.feedback) {
+             // Modify payload to indicate queueing if needed? Optional.
+             // responsePayload.status = this.isPlayingAudio ? "queued" : "playing";
              this.sendToFrontend("GEMINI_RESPONSE", responsePayload);
         } else {
             this.warn(`Not sending GEMINI_RESPONSE notification as no actionable audio/text/feedback was extracted.`);
         }
     },
 
+    // --- Playback Queue Handling ---
+    playNextInQueue() {
+        this.debugLog(`playNextInQueue called. isPlaying: ${this.isPlayingAudio}, queue size: ${this.audioQueue.length}`);
 
-    // --- Optional: Audio Playback Function ---
+        // Check if already playing or queue is empty
+        if (this.isPlayingAudio || this.audioQueue.length === 0) {
+            if (this.isPlayingAudio) {
+                 this.debugLog("Player busy, returning from playNextInQueue.");
+            }
+            if (this.audioQueue.length === 0) {
+                this.debugLog("Queue empty, returning from playNextInQueue.");
+            }
+            return;
+        }
+
+        // Set flag *before* taking item, in case of async issues
+        this.isPlayingAudio = true;
+        this.debugLog("Setting isPlayingAudio = true");
+
+        // Get next item from the front of the queue
+        const audioToPlay = this.audioQueue.shift();
+        this.log(`Dequeued audio. Remaining queue size: ${this.audioQueue.length}`);
+
+        // Play the dequeued audio
+        try {
+            this.playAudio(audioToPlay);
+        } catch (playbackError) {
+            this.error("Failed to initiate audio playback call from queue:", playbackError);
+            // Ensure flag is reset if playAudio call itself throws sync error
+            this.isPlayingAudio = false;
+            this.debugLog("isPlayingAudio set to false (error calling playAudio from queue)");
+            // Try to play the *next* item in case this one failed immediately
+            setTimeout(() => this.playNextInQueue(), 50); // Small delay
+        }
+    },
+
+
+    // --- Actual Audio Playback Function ---
     playAudio(base64Audio) {
-        // Log length only for brevity
+        // Note: isPlayingAudio is already set to true by playNextInQueue before this is called
         this.log(`playAudio called with base64 length: ${base64Audio?.length || 0}`);
 
         if (!base64Audio) {
             this.warn("playAudio called with null/empty audio data.");
-            // Ensure flag isn't stuck if called with null while somehow true
-            // this.isPlayingAudio = false; // Should be false already if check in handleGeminiResponse is working
+            this.isPlayingAudio = false; // Reset flag
+            this.debugLog("isPlayingAudio set to false (null audio data)");
+            this.playNextInQueue(); // Try next item
             return;
         }
 
-        // --- Set playing flag ---
-        this.isPlayingAudio = true;
-        this.log(`Attempting to play received audio at ${OUTPUT_SAMPLE_RATE} Hz... (isPlayingAudio = true)`);
+        this.log(`Attempting to play received audio at ${OUTPUT_SAMPLE_RATE} Hz...`);
 
-        let speaker = null; // Define speaker variable here
+        let speaker = null;
 
         try {
-            speaker = new Speaker({ // Use 'const' or 'let' if not defined outside try/catch
+            speaker = new Speaker({
                 channels: CHANNELS,
                 bitDepth: BITS,
                 sampleRate: OUTPUT_SAMPLE_RATE,
-                // device: 'plughw:1,0' // Commented out for now - test default first
+                // device: 'plughw:1,0' // Commented out - test default first
             });
 
-            // --- Add event listeners to release the lock ---
+            // --- Event listeners ---
             speaker.on('open', () => this.debugLog('Speaker opened for playback.'));
             speaker.on('flush', () => this.debugLog('Speaker flushed. Playback likely ending.'));
-
-            // 'close' is emitted when the stream finishes writing AND the device is closed
             speaker.on('close', () => {
                  this.log('Speaker closed. Playback finished.');
-                 // Double check flag before setting false, in case error handler already did
                  if (this.isPlayingAudio) {
-                     this.isPlayingAudio = false; // *** Release the lock ***
+                     this.isPlayingAudio = false; // Release the lock
                      this.debugLog("isPlayingAudio set to false (on close)");
+                     // *** Crucial: Check queue for next item ***
+                     this.playNextInQueue();
                  }
             });
-
-            // Also release lock on error
             speaker.on('error', (err) => {
-                 this.error(`Speaker error during playback:`, err); // Log the specific playback error
+                 this.error(`Speaker error during playback:`, err);
                  if (this.isPlayingAudio) {
-                    this.isPlayingAudio = false; // *** Release the lock on error too ***
+                    this.isPlayingAudio = false; // Release the lock
                     this.debugLog("isPlayingAudio set to false (on speaker error)");
+                    // *** Crucial: Check queue for next item ***
+                    this.playNextInQueue();
                  }
             });
 
-            // Create buffer and readable stream
+            // --- Stream setup ---
             const buffer = Buffer.from(base64Audio, 'base64');
             const readable = new Readable();
-            readable._read = () => {}; // No action needed on _read for a simple buffer push
+            readable._read = () => {};
             readable.push(buffer);
             readable.push(null); // Signal end of buffer data
 
-            // Handle stream errors (e.g., if piping fails) - also release lock
             readable.on('error', (err) => {
                 this.error('Readable stream error during playback:', err);
                 if (this.isPlayingAudio) {
                     this.isPlayingAudio = false;
                     this.debugLog("isPlayingAudio set to false (readable error)");
+                     // *** Crucial: Check queue for next item ***
+                    this.playNextInQueue();
                 }
-                // Attempt to clean up speaker instance if readable stream errors out
                 if (speaker && typeof speaker.destroy === 'function' && !speaker.destroyed) {
                      try { speaker.destroy(); } catch (destroyErr) { this.error("Error destroying speaker on readable error:", destroyErr); }
                 }
             });
 
-             // Optional: Listen for 'finish' on readable to know when data has been pushed
-            // readable.on('finish', () => {
-            //     this.debugLog("Readable stream finished pushing data to speaker.");
-            // });
-
-            // Pipe the audio data
+            // --- Start playback ---
             readable.pipe(speaker);
             this.log("Piping audio buffer to speaker.");
 
@@ -562,8 +594,11 @@ module.exports = NodeHelper.create({
             // Ensure lock is released if constructor throws
             this.isPlayingAudio = false;
             this.debugLog("isPlayingAudio set to false (on setup catch)");
+             // *** Crucial: Check queue for next item ***
+             this.playNextInQueue();
         }
     },
+
 
     // --- Stop Helper ---
      stop: function() {
@@ -571,8 +606,15 @@ module.exports = NodeHelper.create({
         // Force stop recording first
         this.stopRecording(true);
 
-        // Close the live session if it exists and seems open
+        // Clear the audio queue
+        this.log(`Clearing audio queue (size: ${this.audioQueue.length})`);
+        this.audioQueue = [];
+        // Reset playback flag
+        this.isPlayingAudio = false;
+
+        // Close the live session
         if (this.liveSession) {
+            // ... (session closing logic remains the same) ...
             this.log(`Closing live session explicitly...`);
             try {
                 if (typeof this.liveSession.close === 'function' && this.connectionOpen) {
@@ -590,14 +632,13 @@ module.exports = NodeHelper.create({
              this.log("No active liveSession object to close.");
         }
 
-        // Reset all state variables
+        // Reset state variables
         this.liveSession = null;
         this.apiInitialized = false;
         this.connectionOpen = false;
         this.apiInitializing = false;
-        this.isRecording = false; // Ensure recording is marked as off
-        this.isPlayingAudio = false; // Ensure playback flag is reset on stop
-        this.recordingProcess = null; // Ensure process reference is cleared
+        this.isRecording = false;
+        this.recordingProcess = null;
         this.genAI = null;
         this.apiKey = null;
         this.log(`Node_helper stopped.`);

@@ -405,39 +405,63 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        // this.log(`Received message from Gemini: ` + JSON.stringify(message)); // Keep inspect for debug if needed
-        this.debugLog(`Gemini Message Content:`, util.inspect(message, {depth: 5}));
+        // Log the raw message structure for easier debugging of different formats
+        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
+        this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5})); // Keep detailed debug log if needed
+
         let responsePayload = {
              text: null, audio: null, feedback: null
         };
 
         if (message?.setupComplete) {
-            this.log("Received setupComplete message from Gemini.");
+            this.log("Received setupComplete message from Gemini (ignoring for playback).");
             return; // Ignore this message type for UI updates
         }
 
-        const result = message?.response?.results?.[0];
-        const alternative = result?.alternatives?.[0];
+        // --- NEW EXTRACTION LOGIC based on serverContent structure ---
+        let extractedAudioData = null;
+        try {
+            // Navigate the new structure safely using optional chaining
+            // message -> serverContent -> modelTurn -> parts (array) -> [0] (first element) -> inlineData -> data
+            extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
 
-        if (alternative?.audio) {
-            this.log(`Received audio response (base64 length: ${alternative.audio.length}).`);
-            responsePayload.audio = alternative.audio;
-            // --- Optional: Play Audio on the Pi ---
+            // Also check the mimeType if necessary (optional)
+            // const mimeType = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.mimeType;
+            // if (mimeType !== 'audio/pcm;rate=24000') {
+            //     this.warn(`Received unexpected audio mimeType: ${mimeType}`);
+            // }
+
+        } catch (e) {
+             this.error("Error trying to access audio data in serverContent structure:", e);
+             // Keep extractedAudioData as null
+        }
+
+        // --- Check if audio data was found in the NEW structure ---
+        if (extractedAudioData) {
+            this.log(`Extracted audio response from serverContent.modelTurn (base64 length: ${extractedAudioData.length}).`);
+            responsePayload.audio = extractedAudioData; // Store for potential frontend use
+
+            // --- Play Audio on the Pi ---
              try {
-                 this.playAudio(responsePayload.audio);
+                 this.playAudio(responsePayload.audio); // Pass the extracted data directly
              } catch (playbackError) {
                  this.error("Failed to initiate audio playback:", playbackError);
              }
         } else {
-            this.warn(`Received Gemini message but found no 'audio' data in expected location.`);
-            this.debugLog("Full message for no-audio case:", util.inspect(message, {depth: 5}));
-             // Check if there's text instead (though we requested audio only)
-             if (alternative?.text) {
-                  this.warn(`Received TEXT response unexpectedly: "${alternative.text}"`);
-                  responsePayload.text = `[Unexpected Text: ${alternative.text}]`;
+             // --- If not found in NEW structure, log a warning ---
+             // (You could optionally re-enable the old logic here as a fallback if needed)
+             this.warn(`Received Gemini message but found no 'audio' data in the expected 'serverContent.modelTurn.parts[0].inlineData.data' location.`);
+             this.debugLog("Full message for no-audio case:", util.inspect(message, {depth: 5}));
+
+             // Check if there was text in the *old* structure (less likely if format changed)
+             const oldAlternative = message?.response?.results?.[0]?.alternatives?.[0];
+             if (oldAlternative?.text) {
+                  this.warn(`Received TEXT response unexpectedly in OLD structure: "${oldAlternative.text}"`);
+                  responsePayload.text = `[Unexpected Text: ${oldAlternative.text}]`;
              }
         }
 
+        // --- Prompt Feedback Handling (This part seems independent and should remain) ---
          if (message?.response?.promptFeedback) {
              this.warn(`Prompt feedback received:`, JSON.stringify(message.response.promptFeedback, null, 2));
              responsePayload.feedback = message.response.promptFeedback;
@@ -445,23 +469,27 @@ module.exports = NodeHelper.create({
                  this.error(`Response blocked by API. Reason: ${message.response.promptFeedback.blockReason}`);
                  // Provide feedback text even if audio was blocked
                  responsePayload.text = `[Response blocked: ${message.response.promptFeedback.blockReason}]`;
-                 // Clear any potentially received (but likely empty) audio if blocked
+                 // Ensure no audio is sent/played if blocked
                  responsePayload.audio = null;
+                 // Explicitly stop playback if it was somehow initiated before feedback check
+                 // (Though unlikely with current flow, good practice)
+                 // this.stopPlayback(); // You'd need to implement stopPlayback if needed
              }
          }
 
-         // Only send if there is something to report (audio, text feedback, or error feedback)
+         // --- Send extracted info (if any) to Frontend ---
+         // Send only if there is something actionable to report
         if (responsePayload.audio || responsePayload.text || responsePayload.feedback) {
              this.sendToFrontend("GEMINI_RESPONSE", responsePayload);
         } else {
-            this.warn(`Not sending GEMINI_RESPONSE notification as no actionable data was extracted.`);
+            this.warn(`Not sending GEMINI_RESPONSE notification as no actionable audio/text/feedback was extracted.`);
         }
     },
 
 
     // --- Optional: Audio Playback Function ---
     playAudio(base64Audio) {
-        this.log(`audio chunk base64: ` + base64Audio)
+        this.log(`audio chunk base64: ` + base64Audio);
         if (!base64Audio) {
             this.warn("playAudio called with null/empty audio data.");
             return;

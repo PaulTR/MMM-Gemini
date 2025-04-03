@@ -193,17 +193,48 @@ module.exports = NodeHelper.create({
     }, // --- End initializeLiveGenAPI ---
 
 
-    // --- Socket Notification Handler ---
+// --- Socket Notification Handler ---
     socketNotificationReceived: async function(notification, payload) {
-        // ... (socket notification handling remains largely the same) ...
-         this.debugLog(`Received notification: ${notification}`, payload || "");
-         switch (notification) {
-             case "START_CONNECTION": /* ... */ break;
-             case "START_CONTINUOUS_RECORDING": /* ... */ break;
-             case "STOP_CONNECTION": /* ... */ break;
-         }
-    },
+        // **** ADD THIS LOG ****
+        this.log(`>>> socketNotificationReceived: Received notification: ${notification}`); // Log ALL incoming notifications
 
+        this.debugLog(`Received notification: ${notification}`, payload || "");
+
+        switch (notification) {
+            case "START_CONNECTION":
+                // **** ADD THIS LOG ****
+                this.log(`>>> socketNotificationReceived: Handling START_CONNECTION.`);
+                if (!payload || !payload.apiKey) {
+                    this.error(`START_CONNECTION received without API key.`);
+                    this.sendToFrontend("HELPER_ERROR", { error: "API key not provided by frontend." });
+                    return;
+                }
+                this.debug = payload.debug || false;
+                // **** ADD THIS LOG ****
+                this.log(`>>> socketNotificationReceived: About to call initializeLiveGenAPI...`);
+                try {
+                     // Call the async function - no await needed here as it runs in background
+                     this.initializeLiveGenAPI(payload.apiKey);
+                     this.log(`>>> socketNotificationReceived: Called initializeLiveGenAPI.`); // Log after call initiated
+                } catch (error) {
+                    this.error(">>> socketNotificationReceived: Error occurred synchronously when CALLING initializeLiveGenAPI:", error);
+                }
+                break;
+
+            // *** NEW: Frontend requests recording to start AFTER helper is ready ***
+            case "START_CONTINUOUS_RECORDING":
+                 // **** ADD THIS LOG ****
+                this.log(`>>> socketNotificationReceived: Handling START_CONTINUOUS_RECORDING.`);
+                // ... rest of this case ...
+                break;
+
+            case "STOP_CONNECTION":
+                 // **** ADD THIS LOG ****
+                this.log(`>>> socketNotificationReceived: Handling STOP_CONNECTION.`);
+                this.stop();
+                break;
+        }
+    },
     // --- Audio Recording (Continuous) ---
     startRecording() {
         // ... (startRecording logic remains the same) ...

@@ -82,50 +82,115 @@ module.exports = NodeHelper.create({
 
     // --- API Initialization ---
     async initializeLiveGenAPI(apiKey) {
-        // ... (API initialization logic remains the same) ...
-         if (this.apiInitialized || this.apiInitializing) { /* ... */ return; }
-         if (!apiKey) { /* ... */ return; }
-         this.apiKey = apiKey;
-         this.apiInitializing = true;
-         this.log(`Initializing GoogleGenAI for ${API_VERSION}...`);
-         try {
-             this.genAI = new GoogleGenAI({ /* ... */ });
-             this.log(`GoogleGenAI instance created. API Version: ${API_VERSION}`);
-             this.log(`Attempting to establish Live Connection...`);
-             this.liveSession = await this.genAI.live.connect({
-                 model: GEMINI_MODEL,
-                 callbacks: {
-                     onopen: () => { /* ... set flags, send HELPER_READY ... */ },
-                     onmessage: (message) => { this.handleGeminiResponse(message); },
-                     onerror: (e) => { /* ... log, stop rec, clear queue, send HELPER_ERROR ... */
-                         this.error(`Live Connection ERROR...`);
-                         // ... (error handling) ...
-                         this.persistentSpeaker = null; // Ensure speaker ref is cleared
-                         this.processingQueue = false;
-                         this.audioQueue = [];
-                         // ...
-                      },
-                     onclose: (e) => { /* ... log, stop rec, clear queue, send HELPER_ERROR if unexpected ... */
-                         this.warn(`Live Connection CLOSED...`);
-                         // ... (close handling) ...
-                         this.persistentSpeaker = null; // Ensure speaker ref is cleared
-                         this.processingQueue = false;
-                         this.audioQueue = [];
-                         // ...
-                      },
-                 },
-                 config: { responseModalities: [Modality.AUDIO] },
-             });
-             this.log(`live.connect called...`);
-         } catch (error) { /* ... log, clear flags/queue, send HELPER_ERROR ... */
-            this.error(`Failed to initialize Live GenAI connection...`, error);
-            // ... (error handling) ...
+        this.log(">>> initializeLiveGenAPI called."); // Log entry point
+
+        if (this.apiInitialized || this.apiInitializing) {
+            this.warn(`API initialization already complete or in progress. Initialized: ${this.apiInitialized}, Initializing: ${this.apiInitializing}`);
+            if (this.connectionOpen) {
+                 this.log("Connection already open, sending HELPER_READY.");
+                 this.sendToFrontend("HELPER_READY");
+            }
+            return;
+        }
+        if (!apiKey) {
+            this.error(`API Key is missing! Cannot initialize.`);
+            this.sendToFrontend("HELPER_ERROR", { error: "API Key missing on server." });
+            return;
+        }
+
+        this.apiKey = apiKey;
+        this.apiInitializing = true;
+        this.log(`Initializing GoogleGenAI for ${API_VERSION}...`);
+
+        try {
+            this.log("Step 1: Creating GoogleGenAI instance...");
+            this.genAI = new GoogleGenAI({
+                apiKey: this.apiKey,
+                vertexai: false,
+                systemInstruction: "You are a magical mirror assistant. Respond concisely and clearly to user audio requests. You can only respond with audio.",
+                httpOptions: { 'apiVersion': 'v1alpha' }
+            });
+            this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`);
+
+            this.log(`Step 3: Attempting to establish Live Connection with ${GEMINI_MODEL}...`);
+
+            // Clear potential stale state before connecting
             this.persistentSpeaker = null;
             this.processingQueue = false;
             this.audioQueue = [];
-            // ...
-         }
-    },
+
+            this.liveSession = await this.genAI.live.connect({
+                model: GEMINI_MODEL,
+                callbacks: {
+                    onopen: () => {
+                        this.log(">>> Live Connection Callback: onopen triggered!"); // Log callback execution
+                        this.connectionOpen = true;
+                        this.apiInitializing = false;
+                        this.apiInitialized = true;
+                        this.log("Connection OPENED. Sending HELPER_READY.");
+                        this.sendToFrontend("HELPER_READY"); // <<< This signals success
+                    },
+                    onmessage: (message) => {
+                        this.log(">>> Live Connection Callback: onmessage triggered."); // Log callback execution
+                        this.handleGeminiResponse(message);
+                    },
+                    onerror: (e) => {
+                        this.log(">>> Live Connection Callback: onerror triggered!"); // Log callback execution
+                        this.error(`Live Connection ERROR Received at ${new Date().toISOString()}`);
+                        this.error(`Live Connection ERROR Object:`, util.inspect(e, { depth: 5 }));
+                        const errorMessage = e?.message || e?.toString() || 'Unknown Live Connection Error';
+                        this.error(`Live Connection ERROR Message Extracted:`, errorMessage);
+                        this.connectionOpen = false;
+                        this.apiInitializing = false;
+                        this.apiInitialized = false;
+                        this.liveSession = null;
+                        this.stopRecording(true);
+                        this.persistentSpeaker = null;
+                        this.processingQueue = false;
+                        this.audioQueue = [];
+                        this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${errorMessage}` });
+                    },
+                    onclose: (e) => {
+                        this.log(">>> Live Connection Callback: onclose triggered!"); // Log callback execution
+                        this.warn(`Live Connection CLOSED Event Received at ${new Date().toISOString()}.`);
+                        this.warn(`Live Connection CLOSE Event Object:`, util.inspect(e, { depth: 5 }));
+                        const wasOpen = this.connectionOpen;
+                        this.connectionOpen = false;
+                        this.apiInitializing = false;
+                        this.apiInitialized = false;
+                        this.liveSession = null;
+                        this.stopRecording(true);
+                        this.persistentSpeaker = null;
+                        this.processingQueue = false;
+                        this.audioQueue = [];
+                        if (wasOpen) {
+                            this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly.` });
+                        } else {
+                            this.log("Live Connection closed normally or was already closed.");
+                        }
+                    },
+                },
+                config: { responseModalities: [Modality.AUDIO] },
+            });
+
+            // If await finishes without throwing, the call was made. Now wait for callbacks.
+            this.log(`Step 4: live.connect call initiated, waiting for 'onopen', 'onerror', or 'onclose' callback...`);
+
+        } catch (error) {
+            this.error(`Failed during API Initialization try block (before or during connect call):`, error);
+            if (error.stack) {
+                 this.error(`Initialization error stack:`, error.stack);
+            }
+            this.liveSession = null;
+            this.apiInitialized = false;
+            this.connectionOpen = false;
+            this.apiInitializing = false;
+            this.persistentSpeaker = null;
+            this.processingQueue = false;
+            this.audioQueue = [];
+            this.sendToFrontend("HELPER_ERROR", { error: `API Initialization failed: ${error.message || error}` });
+        }
+    }, // --- End initializeLiveGenAPI ---
 
 
     // --- Socket Notification Handler ---

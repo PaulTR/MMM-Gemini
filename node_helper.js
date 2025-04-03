@@ -415,7 +415,7 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message from Gemini: ` + stringify(message)); // Keep inspect for debug if needed
+        this.log(`Received message from Gemini: ` + JSON.stringify(message)); // Keep inspect for debug if needed
         this.debugLog(`Gemini Message Content:`, util.inspect(message, {depth: 5}));
         let responsePayload = {
              text: null, audio: null, feedback: null

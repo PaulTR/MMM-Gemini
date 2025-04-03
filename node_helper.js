@@ -8,9 +8,7 @@ const util = require('util'); // For inspecting objects
 
 // Optional: For audio playback on the Pi
 // const { Speaker } = require('speaker'); // Uncomment if using playback
-
-const speakerLib = require('speaker');
-const Speaker = speakerLib.Speaker;
+const Speaker = require('speaker');
 
 const { Readable } = require('stream'); // Uncomment if using playback
 
@@ -500,10 +498,14 @@ module.exports = NodeHelper.create({
         }
         this.log(`Attempting to play received audio at ${OUTPUT_SAMPLE_RATE} Hz...`);
         try {
-            const speaker = new Speaker({
-                channels: CHANNELS,
-                bitDepth: BITS,
-                sampleRate: OUTPUT_SAMPLE_RATE
+            // const speaker = new Speaker({
+            //     channels: CHANNELS,
+            //     bitDepth: BITS,
+            //     sampleRate: OUTPUT_SAMPLE_RATE
+            // });
+
+            speaker = new Speaker({
+                channels: CHANNELS, bitDepth: BITS, sampleRate: OUTPUT_SAMPLE_RATE,
             });
             speaker.on('open', () => this.debugLog('Speaker opened for playback.'));
             speaker.on('flush', () => this.debugLog('Speaker flushed.')); // Less verbose

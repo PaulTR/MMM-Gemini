@@ -7,7 +7,11 @@ const { Buffer } = require('buffer');
 const util = require('util'); // For inspecting objects
 
 // Optional: For audio playback on the Pi
-const { Speaker } = require('speaker'); // Uncomment if using playback
+// const { Speaker } = require('speaker'); // Uncomment if using playback
+
+const speakerLib = require('speaker');
+const Speaker = speakerLib.Speaker;
+
 const { Readable } = require('stream'); // Uncomment if using playback
 
 // --- Configuration ---

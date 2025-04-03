@@ -504,7 +504,7 @@ module.exports = NodeHelper.create({
             //     sampleRate: OUTPUT_SAMPLE_RATE
             // });
 
-            speaker = new Speaker({
+            const speaker = new Speaker({
                 channels: CHANNELS, bitDepth: BITS, sampleRate: OUTPUT_SAMPLE_RATE,
             });
             speaker.on('open', () => this.debugLog('Speaker opened for playback.'));

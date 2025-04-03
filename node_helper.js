@@ -405,7 +405,7 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message from Gemini: ` + JSON.stringify(message)); // Keep inspect for debug if needed
+        // this.log(`Received message from Gemini: ` + JSON.stringify(message)); // Keep inspect for debug if needed
         this.debugLog(`Gemini Message Content:`, util.inspect(message, {depth: 5}));
         let responsePayload = {
              text: null, audio: null, feedback: null
@@ -461,6 +461,7 @@ module.exports = NodeHelper.create({
 
     // --- Optional: Audio Playback Function ---
     playAudio(base64Audio) {
+        this.log(`audio chunk base64: ` + base64Audio)
         if (!base64Audio) {
             this.warn("playAudio called with null/empty audio data.");
             return;

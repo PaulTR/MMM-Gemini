@@ -565,7 +565,6 @@ module.exports = NodeHelper.create({
         }
     },
 
-
     // --- Stop Helper ---
      stop: function() {
         this.log(`Stopping node_helper...`);

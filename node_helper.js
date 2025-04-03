@@ -12,7 +12,7 @@ const { Readable } = require('stream'); // Uncomment if using playback
 
 // --- Configuration ---
 const RECORDING_DEVICE = null; // SET THIS if needed! e.g., 'plughw:1,0'. Use 'arecord -l' to find device names.
-const INPUT_SAMPLE_RATE = 16000; // Recorder captures at 16kHz
+const INPUT_SAMPLE_RATE = 44100; // Recorder captures at 16kHz
 const OUTPUT_SAMPLE_RATE = 24000; // Gemini outputs at 24kHz
 const CHANNELS = 1;
 const AUDIO_TYPE = 'raw'; // Underlying format is raw PCM
@@ -312,7 +312,7 @@ module.exports = NodeHelper.create({
                       this.error("Recording stream ended while isRecording was still true. Likely an issue with the recording process.");
                       this.sendToFrontend("HELPER_ERROR", { error: "Recording stream ended unexpectedly." });
                       this.stopRecording(true); // Ensure cleanup
-                 }
+                 }''
              });
 
             this.recordingProcess.process.on('exit', (code, signal) => {
@@ -415,7 +415,7 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message from Gemini.`); // Keep inspect for debug if needed
+        this.log(`Received message from Gemini: ` + stringify(message)); // Keep inspect for debug if needed
         this.debugLog(`Gemini Message Content:`, util.inspect(message, {depth: 5}));
         let responsePayload = {
              text: null, audio: null, feedback: null

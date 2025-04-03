@@ -19,7 +19,7 @@ const AUDIO_TYPE = 'raw'; // Underlying format is raw PCM
 const ENCODING = 'signed-integer'; // Underlying format is 16-bit signed
 const BITS = 16; // Underlying format is 16-bit
 const GEMINI_INPUT_MIME_TYPE = 'audio/pcm;rate=44100'; // Confirmed MIME type
-const SPEAKER_OUTPUT_DELAY = 10
+const SPEAKER_OUTPUT_DELAY = 10 // ORIGINAL VALUE 50
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp';

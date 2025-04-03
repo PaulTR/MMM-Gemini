@@ -516,51 +516,64 @@ module.exports = NodeHelper.create({
     },
 
 
-    // --- Actual Audio Playback Function ---
+// --- Actual Audio Playback Function ---
     playAudio(base64Audio) {
         // Note: isPlayingAudio is already set to true by playNextInQueue before this is called
         this.log(`playAudio called with base64 length: ${base64Audio?.length || 0}`);
 
         if (!base64Audio) {
             this.warn("playAudio called with null/empty audio data.");
-            this.isPlayingAudio = false; // Reset flag
-            this.debugLog("isPlayingAudio set to false (null audio data)");
-            this.playNextInQueue(); // Try next item
+            // Reset flag and try next item *without delay* if data was bad
+            if (this.isPlayingAudio) {
+                this.isPlayingAudio = false;
+                this.debugLog("isPlayingAudio set to false (null audio data)");
+                // No delay needed here, just try the next item immediately
+                this.playNextInQueue();
+            }
             return;
         }
 
         this.log(`Attempting to play received audio at ${OUTPUT_SAMPLE_RATE} Hz...`);
 
         let speaker = null;
+        // Define a small delay in milliseconds before checking the queue again
+        const checkQueueDelay = 150; // Start with 150ms, adjust if needed
+
+        // Helper function to handle cleanup and delayed queue check
+        const cleanupAndCheckQueue = (origin) => {
+            this.debugLog(`cleanupAndCheckQueue called from: ${origin}`);
+            // Only proceed if we were marked as playing
+            if (this.isPlayingAudio) {
+                this.isPlayingAudio = false; // Release the lock
+                this.debugLog(`isPlayingAudio set to false (from ${origin})`);
+                // *** Add Delay before checking queue ***
+                setTimeout(() => {
+                    this.debugLog(`Checking queue after ${checkQueueDelay}ms delay (from ${origin})`);
+                    this.playNextInQueue(); // Check for the next item after the delay
+                }, checkQueueDelay);
+            } else {
+                this.debugLog(`Cleanup called from ${origin}, but was not playing.`);
+            }
+        };
 
         try {
             speaker = new Speaker({
                 channels: CHANNELS,
                 bitDepth: BITS,
                 sampleRate: OUTPUT_SAMPLE_RATE,
-                // device: 'plughw:1,0' // Commented out - test default first
+                // device: 'plughw:1,0' // Still commented out - test default first
             });
 
             // --- Event listeners ---
             speaker.on('open', () => this.debugLog('Speaker opened for playback.'));
             speaker.on('flush', () => this.debugLog('Speaker flushed. Playback likely ending.'));
             speaker.on('close', () => {
-                 this.log('Speaker closed. Playback finished.');
-                 if (this.isPlayingAudio) {
-                     this.isPlayingAudio = false; // Release the lock
-                     this.debugLog("isPlayingAudio set to false (on close)");
-                     // *** Crucial: Check queue for next item ***
-                     this.playNextInQueue();
-                 }
+                this.log('Speaker closed. Playback finished.');
+                cleanupAndCheckQueue('speaker close'); // Use helper
             });
             speaker.on('error', (err) => {
-                 this.error(`Speaker error during playback:`, err);
-                 if (this.isPlayingAudio) {
-                    this.isPlayingAudio = false; // Release the lock
-                    this.debugLog("isPlayingAudio set to false (on speaker error)");
-                    // *** Crucial: Check queue for next item ***
-                    this.playNextInQueue();
-                 }
+                this.error(`Speaker error during playback:`, err);
+                cleanupAndCheckQueue('speaker error'); // Use helper
             });
 
             // --- Stream setup ---
@@ -572,12 +585,8 @@ module.exports = NodeHelper.create({
 
             readable.on('error', (err) => {
                 this.error('Readable stream error during playback:', err);
-                if (this.isPlayingAudio) {
-                    this.isPlayingAudio = false;
-                    this.debugLog("isPlayingAudio set to false (readable error)");
-                     // *** Crucial: Check queue for next item ***
-                    this.playNextInQueue();
-                }
+                cleanupAndCheckQueue('readable error'); // Use helper
+                // Attempt to clean up speaker instance if readable stream errors out
                 if (speaker && typeof speaker.destroy === 'function' && !speaker.destroyed) {
                      try { speaker.destroy(); } catch (destroyErr) { this.error("Error destroying speaker on readable error:", destroyErr); }
                 }
@@ -591,13 +600,9 @@ module.exports = NodeHelper.create({
             // Catch errors during Speaker constructor or initial setup
             this.error(`Failed to initialize or use Speaker for playback:`, e);
              if (e.stack) this.error("Playback error stack:", e.stack);
-            // Ensure lock is released if constructor throws
-            this.isPlayingAudio = false;
-            this.debugLog("isPlayingAudio set to false (on setup catch)");
-             // *** Crucial: Check queue for next item ***
-             this.playNextInQueue();
+             cleanupAndCheckQueue('setup catch'); // Use helper
         }
-    },
+    }, // --- End playAudio ---
 
 
     // --- Stop Helper ---

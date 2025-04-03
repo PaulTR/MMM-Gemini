@@ -422,32 +422,25 @@ module.exports = NodeHelper.create({
 
         // --- NEW EXTRACTION LOGIC based on serverContent structure ---
         let extractedAudioData = null;
-        try {
-            // Navigate the new structure safely using optional chaining
-            // message -> serverContent -> modelTurn -> parts (array) -> [0] (first element) -> inlineData -> data
-            extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+    try {
+         extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+    } catch (e) { /* ... error handling ... */ }
 
-            // Also check the mimeType if necessary (optional)
-            // const mimeType = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.mimeType;
-            // if (mimeType !== 'audio/pcm;rate=24000') {
-            //     this.warn(`Received unexpected audio mimeType: ${mimeType}`);
-            // }
+    if (extractedAudioData) {
+        this.log(`Extracted audio response from serverContent.modelTurn (base64 length: ${extractedAudioData.length}).`);
+        responsePayload.audio = extractedAudioData;
 
-        } catch (e) {
-             this.error("Error trying to access audio data in serverContent structure:", e);
-             // Keep extractedAudioData as null
-        }
-
-        // --- Check if audio data was found in the NEW structure ---
-        if (extractedAudioData) {
-            this.log(`Extracted audio response from serverContent.modelTurn (base64 length: ${extractedAudioData.length}).`);
-            responsePayload.audio = extractedAudioData; // Store for potential frontend use
-
+        // --- Check playback lock BEFORE calling playAudio ---
+        if (this.isPlayingAudio) {
+            this.warn("Audio playback skipped: Player busy with previous response.");
+        } else {
             // --- Play Audio on the Pi ---
              try {
                  this.playAudio(responsePayload.audio); // Pass the extracted data directly
              } catch (playbackError) {
                  this.error("Failed to initiate audio playback:", playbackError);
+                 // Ensure flag is reset if playAudio call itself throws sync error (unlikely but safe)
+                 this.isPlayingAudio = false;
              }
         } else {
              // --- If not found in NEW structure, log a warning ---
@@ -491,41 +484,66 @@ module.exports = NodeHelper.create({
 
     // --- Optional: Audio Playback Function ---
     playAudio(base64Audio) {
-        this.log(`audio chunk base64: ` + base64Audio);
-        if (!base64Audio) {
-            this.warn("playAudio called with null/empty audio data.");
-            return;
-        }
-        this.log(`Attempting to play received audio at ${OUTPUT_SAMPLE_RATE} Hz...`);
-        try {
-            // const speaker = new Speaker({
-            //     channels: CHANNELS,
-            //     bitDepth: BITS,
-            //     sampleRate: OUTPUT_SAMPLE_RATE
-            // });
+    // --- Check if already playing --- > Moved check to handleGeminiResponse
+    // if (this.isPlayingAudio) {
+    //     this.warn("Audio playback skipped: Already playing previous response.");
+    //     return; // Don't start a new playback
+    // }
+    // --- End Check ---
 
-            const speaker = new Speaker({
-                channels: CHANNELS, bitDepth: BITS, sampleRate: OUTPUT_SAMPLE_RATE, device: 'plughw:1,0'
-            });
-            speaker.on('open', () => this.debugLog('Speaker opened for playback.'));
-            speaker.on('flush', () => this.debugLog('Speaker flushed.')); // Less verbose
-            speaker.on('close', () => this.debugLog('Speaker closed.')); // Less verbose
-            speaker.on('error', (err) => this.error(`Speaker error:`, err));
+    this.log(`audio chunk base64 length: ${base64Audio.length}`); // Log length, not full string
+    if (!base64Audio) {
+        this.warn("playAudio called with null/empty audio data.");
+        return;
+    }
 
-            const buffer = Buffer.from(base64Audio, 'base64');
-            const readable = new Readable();
-            readable._read = () => {};
-            readable.push(buffer);
-            readable.push(null);
+    // --- Set playing flag ---
+    this.isPlayingAudio = true;
+    this.log(`Attempting to play received audio at ${OUTPUT_SAMPLE_RATE} Hz... (isPlayingAudio = true)`);
 
-            readable.pipe(speaker);
-            this.log("Piping audio buffer to speaker.");
+    let speaker = null; // Define speaker variable here
 
-        } catch(e) {
-            this.error(`Failed to initialize or use Speaker for playback:`, e);
-             if (e.stack) this.error("Playback error stack:", e.stack);
-        }
-    },
+    try {
+        speaker = new Speaker({ // Use 'const' or 'let' if not defined outside try/catch
+            channels: CHANNELS,
+            bitDepth: BITS,
+            sampleRate: OUTPUT_SAMPLE_RATE,
+            // device: 'plughw:1,0' // Keep specific device if it helped, otherwise remove/comment out
+        });
+
+        // --- Add event listeners ---
+        speaker.on('open', () => this.debugLog('Speaker opened for playback.'));
+        speaker.on('flush', () => this.debugLog('Speaker flushed. Playback likely ending.'));
+        speaker.on('close', () => {
+             this.log('Speaker closed. Playback finished.');
+             this.isPlayingAudio = false; // *** Release the lock ***
+             this.debugLog("isPlayingAudio set to false (on close)");
+        });
+        speaker.on('error', (err) => {
+             this.error(`Speaker error:`, err);
+             this.isPlayingAudio = false; // *** Release the lock on error too ***
+             this.debugLog("isPlayingAudio set to false (on error)");
+        });
+        // It might be safer to use 'finish' event on the readable stream if 'close' doesn't fire reliably
+        // readableStream.on('finish', () => { ... });
+
+        const buffer = Buffer.from(base64Audio, 'base64');
+        const readable = new Readable();
+        readable._read = () => {};
+        readable.push(buffer);
+        readable.push(null); // Signal end of buffer data
+
+        // Pipe the audio data
+        readable.pipe(speaker);
+        this.log("Piping audio buffer to speaker.");
+
+    } catch(e) {
+        this.error(`Failed to initialize or use Speaker for playback:`, e);
+         if (e.stack) this.error("Playback error stack:", e.stack);
+        this.isPlayingAudio = false; // *** Ensure lock is released if constructor throws ***
+        this.debugLog("isPlayingAudio set to false (on catch)");
+    }
+},
 
 
     // --- Stop Helper ---

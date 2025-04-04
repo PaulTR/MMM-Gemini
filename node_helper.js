@@ -157,8 +157,8 @@ module.exports = NodeHelper.create({
                 },
                 // https://googleapis.github.io/js-genai/main/interfaces/types.LiveConnectConfig.html
                 config: { 
-                    responseModalities: [Modality.AUDIO],
-                    // responseModalities: [Modality.TEXT],
+                    // responseModalities: [Modality.AUDIO],
+                    responseModalities: [Modality.TEXT],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
@@ -350,8 +350,8 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
-        this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
+        // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
+        // this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
         
         if(message?.setupComplete) { /* ... */ return; }
         if( message?.serverContent?.turnComplete ) { /* ... */ return }
@@ -366,6 +366,7 @@ module.exports = NodeHelper.create({
              this.audioQueue.push(extractedAudioData);
              this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
              this._processQueue();
+             return
         } else { this.warn(`No audio data found...`); }
         
         // Check if text response
@@ -373,6 +374,7 @@ module.exports = NodeHelper.create({
         if( extractedTextData ) {
             this.log(`Extracted text: ` + extractedTextData)
             this.sendToFrontend("GEMINI_RESPONSE", { text: extractedTextData });
+            return
         } else {
             this.warn(`No text data found...`)
         }

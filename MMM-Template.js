@@ -82,7 +82,7 @@ Module.register("MMM-Template", {
     const statusDiv = document.createElement("div")
     statusDiv.className = "status-indicator" // Added MM classes
     statusDiv.style.verticalAlign = "middle" // Align indicator vertically
-    responseSpan.style.marginLeft = "-25px"
+    // responseSpan.style.marginLeft = "-25px"
     statusDiv.innerHTML = indicator
 
     const textDiv = document.createElement("div")

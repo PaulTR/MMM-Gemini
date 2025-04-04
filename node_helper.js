@@ -553,10 +553,15 @@ module.exports = NodeHelper.create({
                         config: {
                             numberOfImages: 1,
                             includeRaiReason: true
+                            personGeneration: PersonGeneration.ALLOW_ADULT,
                         },
                     })
-                    this.log(`Received image response from Gemini:`, JSON.stringify(response, null, 2))
-                    // TODO handle RaiReason
+
+                    // TODO handle RaiReason if it exists
+                    let imageBytes = response?.generatedImages?.[0]?.image?.imageBytes
+                    if( imageBytes ) {
+                        this.sendToFrontend("GEMINI_IMAGE_GENERATED", { image: imageBytes })
+                    }
                 }
             }
         }

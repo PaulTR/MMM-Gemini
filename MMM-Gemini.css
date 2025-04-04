@@ -16,6 +16,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
+  width: 100%;
 }
 
 .mmm-gemini .status-indicator {
@@ -52,4 +53,25 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.mmm-gemini .content-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mmm-gemini .image-container {
+  margin-bottom: 10px;
+  width: 100%;
+  text-align: center;
+}
+
+.mmm-gemini .generated-image {
+  display: block;
+  max-width: 90%;
+  max-height: 300px;
+  height: auto;
+  margin-left: auto;
+  margin-right: auto;
 }

@@ -352,7 +352,6 @@ module.exports = NodeHelper.create({
     handleGeminiResponse(message) {
         this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
         this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
-        let responsePayload = { text: null, audio: null, feedback: null };
         
         if (message?.setupComplete) { /* ... */ return; }
 
@@ -363,21 +362,21 @@ module.exports = NodeHelper.create({
         
         if (extractedAudioData) {
              this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
-             responsePayload.audio = extractedAudioData;
              this.audioQueue.push(extractedAudioData);
              this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
              this._processQueue();
-        } else { if (!responsePayload.feedback?.blockReason) { this.warn(`No audio data found...`); } }
+        } else { this.warn(`No audio data found...`); }
         
         // Check if text response
         let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
         if( extractedTextData ) {
-            responsePayload.text = extractedTextData;
+            this.sendToFrontend("GEMINI_RESPONSE", extractedTextData);
+        } else {
+            this.warn(`No text data found...`)
         }
 
 
-        if (responsePayload.audio || responsePayload.text || responsePayload.feedback) { this.sendToFrontend("GEMINI_RESPONSE", responsePayload); }
-        else { this.warn(`Not sending GEMINI_RESPONSE notification...`); }
+        if (!extractedAudioData && !extractedTextData) { this.warn(`Not sending GEMINI_RESPONSE notification...`) }
     },
 
     // --- Process the Audio Playback Queue ---

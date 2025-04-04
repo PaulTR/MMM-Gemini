@@ -158,8 +158,8 @@ module.exports = NodeHelper.create({
                 },
 
                 config: {
-                    responseModalities: [Modality.AUDIO],
-                    // responseModalities: [Modality.TEXT], // Keep your commented preference
+                    // responseModalities: [Modality.AUDIO],
+                    responseModalities: [Modality.TEXT], // Keep your commented preference
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
@@ -493,7 +493,7 @@ module.exports = NodeHelper.create({
             Playback starts ONLY when turn is complete AND queue has items
             There's some decisions you could make here - you can play all of the chunks as they come in,
             but then you have some pauses/hiccups during the initial playback chunks
-            With this queue method, playback is smooth, but also delayed while it waits for all chunks to come through
+            With this queue method, playback is smooth, but also delayed while it waits for the turnComplete message to come through
             I valued clean output over speed for this project, but feel free to change anything you want
         */
         if (message?.serverContent?.turnComplete) {

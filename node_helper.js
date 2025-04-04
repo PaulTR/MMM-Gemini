@@ -69,6 +69,49 @@ module.exports = NodeHelper.create({
         this.debug = false
     },
 
+    _initializePersistentSpeaker() {
+        if (!this.persistentSpeaker || this.persistentSpeaker.destroyed) {
+            this.log("Creating new persistent speaker instance.")
+            try {
+                this.persistentSpeaker = new Speaker({
+                    channels: CHANNELS,
+                    bitDepth: BITS,
+                    sampleRate: OUTPUT_SAMPLE_RATE,
+                })
+
+                // --- Setup listeners once per speaker instance ---
+                this.persistentSpeaker.on('error', (err) => {
+                    this.error('Persistent Speaker Error:', err)
+                    if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) { 
+                        try { 
+                            this.persistentSpeaker.destroy()
+                        } catch (e) {
+                            this.error("Error destroying speaker on error:", e)
+                        }
+                    }
+
+                    this.persistentSpeaker = null
+                    this.processingQueue = false
+                })
+
+                this.persistentSpeaker.on('close', () => {
+                    this.log('Persistent Speaker Closed.')
+                    this.persistentSpeaker = null
+                    this.processingQueue = false
+                })
+
+                this.persistentSpeaker.on('open', () => this.log('Persistent Speaker opened.'))
+                this.persistentSpeaker.on('flush', () => this.log('Persistent Speaker flushed.'))
+
+            } catch (e) {
+                this.error('Failed to create persistent speaker:', e)
+                this.processingQueue = false
+                this.persistentSpeaker = null
+                return
+            }
+        }
+    },
+
     async initialize(apiKey) {
         this.log(">>> initialize called.")
 
@@ -593,48 +636,5 @@ module.exports = NodeHelper.create({
                 this._processQueue() // Call again immediately to process next item if any
             }
         })
-    },
-
-    _initializePersistentSpeaker() {
-        if (!this.persistentSpeaker || this.persistentSpeaker.destroyed) {
-            this.log("Creating new persistent speaker instance.")
-            try {
-                this.persistentSpeaker = new Speaker({
-                    channels: CHANNELS,
-                    bitDepth: BITS,
-                    sampleRate: OUTPUT_SAMPLE_RATE,
-                })
-
-                // --- Setup listeners once per speaker instance ---
-                this.persistentSpeaker.on('error', (err) => {
-                    this.error('Persistent Speaker Error:', err)
-                    if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) { 
-                        try { 
-                            this.persistentSpeaker.destroy()
-                        } catch (e) {
-                            this.error("Error destroying speaker on error:", e)
-                        }
-                    }
-
-                    this.persistentSpeaker = null
-                    this.processingQueue = false
-                })
-
-                this.persistentSpeaker.on('close', () => {
-                    this.log('Persistent Speaker Closed.')
-                    this.persistentSpeaker = null
-                    this.processingQueue = false
-                })
-
-                this.persistentSpeaker.on('open', () => this.log('Persistent Speaker opened.'))
-                this.persistentSpeaker.on('flush', () => this.log('Persistent Speaker flushed.'))
-
-            } catch (e) {
-                this.error('Failed to create persistent speaker:', e)
-                this.processingQueue = false
-                this.persistentSpeaker = null
-                return
-            }
-        }
     },
 })

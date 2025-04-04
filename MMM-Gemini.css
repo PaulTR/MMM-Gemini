@@ -1,5 +1,5 @@
 
-.mmm-template-gemini {
+.mmm-gemini {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -10,7 +10,7 @@
   gap: 10px;
 }
 
-.mmm-template-gemini .text-container {
+.mmm-gemini .text-container {
   order: 1;
   display: flex;
   flex-direction: column;
@@ -18,7 +18,7 @@
   text-align: center;
 }
 
-.mmm-template-gemini .status-indicator {
+.mmm-gemini .status-indicator {
   order: 2;
   width: 50px;
   height: 50px;
@@ -27,14 +27,14 @@
   padding: 0;
 }
 
-.mmm-template-gemini .current-status {
+.mmm-gemini .current-status {
   font-size: 1em;
   color: #FFF;
   line-height: 1.2;
   margin-bottom: 5px;
 }
 
-.mmm-template-gemini .response {
+.mmm-gemini .response {
   font-size: 1.5em;
   color: #FFF;
   line-height: 1.1;
@@ -44,11 +44,11 @@
   word-wrap: break-word;
 }
 
-.mmm-template-gemini .status-indicator:empty {
+.mmm-gemini .status-indicator:empty {
     display: none;
 }
 
-.mmm-template-gemini .status-indicator svg {
+.mmm-gemini .status-indicator svg {
   display: block;
   width: 100%;
   height: 100%;

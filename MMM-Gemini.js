@@ -1,4 +1,4 @@
-Module.register("MMM-Template", {
+Module.register("MMM-Gemini", {
   defaults: {
     statusText: "Initializing...",
     apiKey: "", // MUST be set in config.js
@@ -40,7 +40,7 @@ Module.register("MMM-Template", {
 
   getDom() {
     const wrapper = document.createElement("div")
-    wrapper.className = "mmm-template-gemini"
+    wrapper.className = "mmm-gemini"
 
     const textDiv = document.createElement("div")
     textDiv.className = "text-container"
@@ -101,7 +101,7 @@ Module.register("MMM-Template", {
 
 
   getStyles: function() {
-      return ["MMM-Template.css"]
+      return ["MMM-Gemini.css"]
   },
 
   socketNotificationReceived: function (notification, payload) {

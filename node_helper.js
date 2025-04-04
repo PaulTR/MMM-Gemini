@@ -177,7 +177,13 @@ module.exports = NodeHelper.create({
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
-                    // tools: [] // Keep your commented preference
+                    tools: [{
+                        googleSearch: {}, 
+                        googleSearchRetrieval: {
+                            dynamicRetrievalConfig: {
+                                mode: DynamicRetrievalConfigMode.MODE_DYNAMIC,
+                            }
+                    } }] // Keep your commented preference
                 },
             })
 

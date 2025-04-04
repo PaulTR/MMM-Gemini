@@ -547,7 +547,7 @@ module.exports = NodeHelper.create({
                 case "generate_image": // TODO think about moving this into its own function
                     this.log("****** Entering image generate ******")
                     this.log(`****** prompt ****** : ${generateImagePrompt}`)
-                    const response = this.imaGenAI.models.generateImages({
+                    await response = this.imaGenAI.models.generateImages({
                         model: 'imagen-3.0-generate-002',
                         prompt: generateImagePrompt,
                         config: {

@@ -157,8 +157,8 @@ module.exports = NodeHelper.create({
                 },
                 // https://googleapis.github.io/js-genai/main/interfaces/types.LiveConnectConfig.html
                 config: { 
-                    // responseModalities: [Modality.AUDIO],
-                    responseModalities: [Modality.TEXT],
+                    responseModalities: [Modality.AUDIO],
+                    // responseModalities: [Modality.TEXT],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },

@@ -473,7 +473,7 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
+        // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
 
         if (message?.setupComplete) {
             this.log("Received setupComplete message from Gemini (ignoring for playback).")

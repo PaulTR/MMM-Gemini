@@ -17,6 +17,10 @@
   color: #fff;
 }
 
+.mmm-template-gemini .status-indicator {
+    margin-top: 30px;
+}
+
 /* You can add more specific styling for bright, dimmed, small, medium, light etc.
    if your MagicMirror theme doesn't define them adequately */
 

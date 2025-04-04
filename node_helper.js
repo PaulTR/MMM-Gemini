@@ -1,7 +1,7 @@
 /* node_helper.js - Persistent Speaker, Queue, Waits for Turn Complete - CORRECTED Config */
 
 const NodeHelper = require("node_helper")
-const { GoogleGenAI, Modality, DynamicRetrievalConfigMode } = require("@google/genai")
+const { GoogleGenAI, Modality, DynamicRetrievalConfigMode, Type } = require("@google/genai")
 const recorder = require('node-record-lpcm16')
 const { Buffer } = require('buffer')
 const util = require('util')
@@ -186,15 +186,15 @@ module.exports = NodeHelper.create({
                         },
                         functionDeclarations: [
                             {
-                                name: "",
-                                description: "",
+                                name: "generate_image",
+                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror",
                                 parameters: {
                                     type: Type.OBJECT,
                                     description: "This object will contain a generated prompt for generating a new image through the Gemini API",
                                     properties: {
                                         image_prompt: {
                                             type: Type.STRING,
-                                            description: "A prompt that should be used with image generation to create an image requested by the user using Gemini. Be as detailed as necessary. Style should be like an detailed realistic fantasy painting."
+                                            description: "A prompt that should be used with image generation to create an image requested by the user using Gemini. Be as detailed as necessary."
                                         },
                                     },
                                 },

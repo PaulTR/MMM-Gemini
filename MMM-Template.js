@@ -170,6 +170,7 @@ Module.register("MMM-Template", {
         break;
       case "GEMINI_TURN_COMPLETE": 
         this.turnComplete = true
+        break
       case "HELPER_ERROR":
         this.currentState = "ERROR";
         this.currentStatusText = `Error: ${payload.error || 'Unknown helper error'}`

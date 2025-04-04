@@ -590,7 +590,7 @@ module.exports = NodeHelper.create({
                 this.persistentSpeaker = null
                 return
             }
-        },
+        }
 
         if (!this.persistentSpeaker) {
              this.error("Cannot process queue, speaker instance is not available.")

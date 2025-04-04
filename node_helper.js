@@ -162,7 +162,7 @@ module.exports = NodeHelper.create({
                             this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly.` })
                             // *** This might cause a loop if things go poorly, but the goal is that when the live connection automatically times out, we can just reopen.
                             // Not ideal if you're looking to constantly have your mirror running, you may want to add some logic to detect a volume threshold, then initialize everything
-                            // but for a demo, this is good enough
+                            // but for a demo, this is good enough ***
                             initialize(apiKey)
                         }
                         else { 
@@ -173,7 +173,7 @@ module.exports = NodeHelper.create({
 
                 config: {
                     // responseModalities: [Modality.AUDIO],
-                    responseModalities: [Modality.TEXT],
+                    responseModalities: [Modality.TEXT, Modality.IMAGE],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },

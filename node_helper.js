@@ -1,7 +1,7 @@
 /* node_helper.js - Persistent Speaker, Queue, Waits for Turn Complete - CORRECTED Config */
 
 const NodeHelper = require("node_helper")
-const { GoogleGenAI, Modality } = require("@google/genai")
+const { GoogleGenAI, Modality, DynamicRetrievalConfigMode } = require("@google/genai")
 const recorder = require('node-record-lpcm16')
 const { Buffer } = require('buffer')
 const util = require('util')

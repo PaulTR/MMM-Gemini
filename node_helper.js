@@ -552,7 +552,7 @@ module.exports = NodeHelper.create({
                         prompt: generateImagePrompt,
                         config: {
                             numberOfImages: 1,
-                            includeRaiReason: true
+                            includeRaiReason: true,
                             personGeneration: PersonGeneration.ALLOW_ADULT,
                         },
                     })

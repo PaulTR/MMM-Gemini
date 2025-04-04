@@ -168,7 +168,7 @@ module.exports = NodeHelper.create({
                             // *** This might cause a loop if things go poorly, but the goal is that when the live connection automatically times out, we can just reopen.
                             // Not ideal if you're looking to constantly have your mirror running, you may want to add some logic to detect a volume threshold, then initialize everything
                             // but for a demo, this is good enough ***
-                            initialize(apiKey)
+                            this.initialize(apiKey)
                         }
                         else { 
                             this.log("Live Connection closed normally or was already closed.")
@@ -554,7 +554,7 @@ module.exports = NodeHelper.create({
                         config: {
                             numberOfImages: 1,
                             includeRaiReason: true,
-                            personGeneration: PersonGeneration.ALLOW_ADULT,
+                            // personGeneration: PersonGeneration.ALLOW_ADULT,
                         },
                     })
 

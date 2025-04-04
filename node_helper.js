@@ -1,23 +1,22 @@
 /* node_helper.js - Persistent Speaker, Queue, Waits for Turn Complete - CORRECTED Config */
 
-const NodeHelper = require("node_helper");
-const { GoogleGenAI, Modality } = require("@google/genai");
-const recorder = require('node-record-lpcm16');
-const { Buffer } = require('buffer');
-const util = require('util'); // For inspecting objects
+const NodeHelper = require("node_helper")
+const { GoogleGenAI, Modality } = require("@google/genai")
+const recorder = require('node-record-lpcm16')
+const { Buffer } = require('buffer')
+const util = require('util')
 
-const Speaker = require('speaker'); // Directly require Speaker
-const { Readable } = require('stream');
+const Speaker = require('speaker')
+const { Readable } = require('stream')
 
 // --- Configuration ---
-const RECORDING_DEVICE = null; // SET THIS if needed! e.g., 'plughw:1,0'. Use 'arecord -l' to find device names.
-const INPUT_SAMPLE_RATE = 44100; // Recorder captures at 44.1KHz for AT2020, otherwise 16000 for other microphones
-const OUTPUT_SAMPLE_RATE = 24000; // Gemini outputs at 24kHz
-const CHANNELS = 1;
-const AUDIO_TYPE = 'raw'; // Underlying format is raw PCM
-const ENCODING = 'signed-integer'; // Underlying format is 16-bit signed
-const BITS = 16; // Underlying format is 16-bit
-const GEMINI_INPUT_MIME_TYPE = 'audio/pcm;rate=44100'; // Confirmed MIME type
+const INPUT_SAMPLE_RATE = 44100 // Recorder captures at 44.1KHz for AT2020, otherwise 16000 for other microphones
+const OUTPUT_SAMPLE_RATE = 24000 // Gemini outputs at 24kHz
+const CHANNELS = 1
+const AUDIO_TYPE = 'raw' // Gemini Live API uses raw data streams
+const ENCODING = 'signed-integer'
+const BITS = 16
+const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp';
@@ -30,133 +29,143 @@ module.exports = NodeHelper.create({
     apiKey: null,
     recordingProcess: null,
     isRecording: false,
-    audioQueue: [],          // Queue for pending audio playback data (base64 strings)
-    persistentSpeaker: null, // Holds the single Speaker instance
-    processingQueue: false,  // Flag to prevent _processQueue re-entry
+    audioQueue: [],
+    persistentSpeaker: null,
+    processingQueue: false,
     apiInitialized: false,
     connectionOpen: false,
     apiInitializing: false,
     debug: false,
 
-    // --- Logging Wrapper ---
+    // Created a logger to help with debugging
     log: function(...args) {
-        console.log(`[${new Date().toISOString()}] NodeHelper (${this.name}):`, ...args);
+        console.log(`[${new Date().toISOString()}] NodeHelper (${this.name}):`, ...args)
     },
     error: function(...args) {
-        console.error(`[${new Date().toISOString()}] NodeHelper (${this.name}):`, ...args);
+        console.error(`[${new Date().toISOString()}] NodeHelper (${this.name}):`, ...args)
     },
     warn: function(...args) {
-        console.warn(`[${new Date().toISOString()}] NodeHelper (${this.name}):`, ...args);
+        console.warn(`[${new Date().toISOString()}] NodeHelper (${this.name}):`, ...args)
     },
     debugLog: function(...args) {
         if (this.debug) {
-            console.log(`[${new Date().toISOString()}] NodeHelper (${this.name}) DEBUG:`, ...args);
+            console.log(`[${new Date().toISOString()}] NodeHelper (${this.name}) DEBUG:`, ...args)
         }
     },
     sendToFrontend: function(notification, payload) {
-        this.debugLog(`Sending notification: ${notification}`, payload || "");
-        this.sendSocketNotification(notification, payload);
+        this.debugLog(`Sending notification: ${notification}`, payload || "")
+        this.sendSocketNotification(notification, payload)
     },
     sendHelperLog: function(message) {
-         this.sendToFrontend("HELPER_LOG", message);
+         this.sendToFrontend("HELPER_LOG", message)
     },
 
 
     // --- Lifecycle Functions ---
     start: function() {
-        this.log(`Starting node_helper...`);
-        this.recordingProcess = null;
-        this.isRecording = false;
-        this.audioQueue = [];      // Initialize queue
-        this.persistentSpeaker = null; // Initialize speaker holder
-        this.processingQueue = false; // Initialize flag
-        this.apiInitialized = false;
-        this.connectionOpen = false;
-        this.apiInitializing = false;
-        this.liveSession = null;
-        this.genAI = null;
-        this.apiKey = null;
-        this.debug = false;
+        this.log(`Starting node_helper...`)
+        this.recordingProcess = null
+        this.isRecording = false
+        this.audioQueue = []
+        this.persistentSpeaker = null
+        this.processingQueue = false
+        this.apiInitialized = false
+        this.connectionOpen = false
+        this.apiInitializing = false
+        this.liveSession = null
+        this.genAI = null
+        this.apiKey = null
+        this.debug = false
     },
 
-    // --- API Initialization ---
     async initializeLiveGenAPI(apiKey) {
-        this.log(">>> initializeLiveGenAPI called."); // Log entry point
+        this.log(">>> initializeLiveGenAPI called.")
 
         if (this.apiInitialized || this.apiInitializing) {
-            this.warn(`API initialization already complete or in progress. Initialized: ${this.apiInitialized}, Initializing: ${this.apiInitializing}`);
+            this.warn(`API initialization already complete or in progress. Initialized: ${this.apiInitialized}, Initializing: ${this.apiInitializing}`)
             if (this.connectionOpen) {
-                 this.log("Connection already open, sending HELPER_READY.");
-                 this.sendToFrontend("HELPER_READY");
+                 this.log("Connection already open, sending HELPER_READY.")
+                 this.sendToFrontend("HELPER_READY")
             }
-            return;
+            return
         }
         if (!apiKey) {
-            this.error(`API Key is missing! Cannot initialize.`);
-            this.sendToFrontend("HELPER_ERROR", { error: "API Key missing on server." });
-            return;
+            this.error(`API Key is missing! Cannot initialize.`)
+            this.sendToFrontend("HELPER_ERROR", { error: "API Key missing on server." })
+            return
         }
 
-        this.apiKey = apiKey;
-        this.apiInitializing = true;
-        this.log(`Initializing GoogleGenAI for ${API_VERSION}...`);
+        this.apiKey = apiKey
+        this.apiInitializing = true
+        this.log(`Initializing GoogleGenAI for ${API_VERSION}...`)
 
         try {
-            this.log("Step 1: Creating GoogleGenAI instance...");
-            // *** Ensuring NO systemInstruction here, as per your baseline ***
+            this.log("Step 1: Creating GoogleGenAI instance...")
+            
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
-                vertexai: false,
-                httpOptions: { 'apiVersion': 'v1alpha' }
-            });
-            this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`);
+                httpOptions: { 'apiVersion': 'v1alpha' } // v1alpha required at time of making this. Likely to change in the future
+            })
 
-            this.log(`Step 3: Attempting to establish Live Connection with ${GEMINI_MODEL}...`);
+            this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`)
 
-            // Clear potential stale state before connecting
-            this.persistentSpeaker = null;
-            this.processingQueue = false;
-            this.audioQueue = [];
+            this.log(`Step 3: Attempting to establish Live Connection with ${GEMINI_MODEL}...`)
+
+            // Clear potential stale state before connecting. 
+            // Should already be null on initial call, but if we need to reconnect we'll want to reset these
+            this.persistentSpeaker = null
+            this.processingQueue = false
+            this.audioQueue = []
 
             this.liveSession = await this.genAI.live.connect({
                 model: GEMINI_MODEL,
                 callbacks: {
                     onopen: () => {
-                        this.log(">>> Live Connection Callback: onopen triggered!");
-                        this.connectionOpen = true;
-                        this.apiInitializing = false;
-                        this.apiInitialized = true;
-                        this.log("Connection OPENED. Sending HELPER_READY.");
-                        this.sendToFrontend("HELPER_READY");
+                        this.log(">>> Live Connection Callback: onopen triggered!")
+
+                        this.connectionOpen = true
+                        this.apiInitializing = false
+                        this.apiInitialized = true
+
+                        this.log("Connection OPENED. Sending HELPER_READY.")
+                        this.sendToFrontend("HELPER_READY")
                     },
                     onmessage: (message) => {
-                        this.log(">>> Live Connection Callback: onmessage triggered.");
-                        this.handleGeminiResponse(message);
+                        this.log(">>> Live Connection Callback: onmessage triggered.")
+                        this.handleGeminiResponse(message)
                     },
                     onerror: (e) => {
-                        this.log(">>> Live Connection Callback: onerror triggered!");
-                        this.error(`Live Connection ERROR Received at ${new Date().toISOString()}`);
-                        this.error(`Live Connection ERROR Object:`, util.inspect(e, { depth: 5 }));
-                        const errorMessage = e?.message || e?.toString() || 'Unknown Live Connection Error';
-                        this.error(`Live Connection ERROR Message Extracted:`, errorMessage);
-                        this.connectionOpen = false; this.apiInitializing = false; this.apiInitialized = false;
-                        this.liveSession = null; this.stopRecording(true);
-                        this.persistentSpeaker = null; this.processingQueue = false; this.audioQueue = [];
-                        this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${errorMessage}` });
+                        this.log(">>> Live Connection Callback: onerror triggered!")
+                        this.error(`Live Connection ERROR Received at ${new Date().toISOString()}`)
+                        this.error(`Live Connection ERROR Object:`, util.inspect(e, { depth: 5 }))
+                        const errorMessage = e?.message || e?.toString() || 'Unknown Live Connection Error'
+                        this.error(`Live Connection ERROR Message Extracted:`, errorMessage)
+
+                        this.connectionOpen = false; this.apiInitializing = false; this.apiInitialized = false
+                        this.liveSession = null; this.stopRecording(true)
+                        this.persistentSpeaker = null; this.processingQueue = false; this.audioQueue = []
+
+                        this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${errorMessage}` })
                     },
                     onclose: (e) => {
-                        this.log(">>> Live Connection Callback: onclose triggered!");
-                        this.warn(`Live Connection CLOSED Event Received at ${new Date().toISOString()}.`);
-                        this.warn(`Live Connection CLOSE Event Object:`, util.inspect(e, { depth: 5 }));
-                        const wasOpen = this.connectionOpen;
-                        this.connectionOpen = false; this.apiInitializing = false; this.apiInitialized = false;
-                        this.liveSession = null; this.stopRecording(true);
-                        this.persistentSpeaker = null; this.processingQueue = false; this.audioQueue = [];
-                        if (wasOpen) { this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly.` }); }
-                        else { this.log("Live Connection closed normally or was already closed."); }
+                        this.log(">>> Live Connection Callback: onclose triggered!")
+                        this.warn(`Live Connection CLOSED Event Received at ${new Date().toISOString()}.`)
+                        this.warn(`Live Connection CLOSE Event Object:`, util.inspect(e, { depth: 5 }))
+
+                        const wasOpen = this.connectionOpen
+                        this.connectionOpen = false; this.apiInitializing = false; this.apiInitialized = false
+                        this.liveSession = null; this.stopRecording(true)
+                        this.persistentSpeaker = null; this.processingQueue = false; this.audioQueue = []
+
+                        if (wasOpen) { 
+                            this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly.` })
+                        }
+                        else { 
+                            this.log("Live Connection closed normally or was already closed.")
+                        }
                     },
                 },
-                // *** RESTORED config object EXACTLY as you provided ***
+
                 config: {
                     responseModalities: [Modality.AUDIO],
                     // responseModalities: [Modality.TEXT], // Keep your commented preference
@@ -165,24 +174,34 @@ module.exports = NodeHelper.create({
                     },
                     // tools: [] // Keep your commented preference
                 },
-            });
+            })
 
-            this.log(`Step 4: live.connect call initiated, waiting for callback...`);
+            this.log(`Step 4: live.connect call initiated, waiting for callback...`)
 
         } catch (error) {
             this.error(`Failed during API Initialization try block:`, error);
-            if (error.stack) { this.error(`Initialization error stack:`, error.stack); }
-            this.liveSession = null; this.apiInitialized = false; this.connectionOpen = false; this.apiInitializing = false;
-            this.persistentSpeaker = null; this.processingQueue = false; this.audioQueue = [];
-            this.sendToFrontend("HELPER_ERROR", { error: `API Initialization failed: ${error.message || error}` });
+           
+            if (error.stack) {
+                this.error(`Initialization error stack:`, error.stack)
+            }
+
+            this.liveSession = null
+            this.apiInitialized = false
+            this.connectionOpen = false
+            this.apiInitializing = false
+            this.persistentSpeaker = null
+            this.processingQueue = false
+            this.audioQueue = []
+
+            this.sendToFrontend("HELPER_ERROR", { error: `API Initialization failed: ${error.message || error}` })
         }
     },
 
 
     // --- Socket Notification Handler ---
     socketNotificationReceived: async function(notification, payload) {
-        this.log(`>>> socketNotificationReceived: Received notification: ${notification}`);
-        this.debugLog(`Received notification details: ${notification}`, payload || "");
+        // this.log(`>>> socketNotificationReceived: Received notification: ${notification}`);
+        // this.debugLog(`Received notification details: ${notification}`, payload || "");
 
         switch (notification) {
             case "START_CONNECTION":
@@ -251,7 +270,6 @@ module.exports = NodeHelper.create({
             audioType: AUDIO_TYPE,
             encoding: ENCODING,
             bits: BITS,
-            device: RECORDING_DEVICE,
             debug: this.debug,
             threshold: 0,
         };

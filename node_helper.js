@@ -95,7 +95,6 @@ module.exports = NodeHelper.create({
             
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
-                vertexai: false,
                 httpOptions: { 'apiVersion': 'v1alpha' } // v1alpha required at time of making this. Likely to change in the future
             })
 

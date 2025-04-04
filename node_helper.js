@@ -1,4 +1,4 @@
-/* node_helper.js - Persistent Speaker, Queue, Waits for Turn Complete - Full Code */
+/* node_helper.js - Persistent Speaker, Queue, Waits for Turn Complete - CORRECTED Config */
 
 const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality } = require("@google/genai");
@@ -103,10 +103,10 @@ module.exports = NodeHelper.create({
 
         try {
             this.log("Step 1: Creating GoogleGenAI instance...");
+            // *** Ensuring NO systemInstruction here, as per your baseline ***
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
                 vertexai: false,
-                systemInstruction: "You are a magical mirror assistant. Respond concisely and clearly to user audio requests. You can only respond with audio.",
                 httpOptions: { 'apiVersion': 'v1alpha' }
             });
             this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`);
@@ -156,7 +156,15 @@ module.exports = NodeHelper.create({
                         else { this.log("Live Connection closed normally or was already closed."); }
                     },
                 },
-                config: { responseModalities: [Modality.AUDIO] },
+                // *** RESTORED config object EXACTLY as you provided ***
+                config: {
+                    responseModalities: [Modality.AUDIO],
+                    // responseModalities: [Modality.TEXT], // Keep your commented preference
+                    systemInstruction: {
+                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
+                    },
+                    // tools: [] // Keep your commented preference
+                },
             });
 
             this.log(`Step 4: live.connect call initiated, waiting for callback...`);
@@ -173,7 +181,7 @@ module.exports = NodeHelper.create({
 
     // --- Socket Notification Handler ---
     socketNotificationReceived: async function(notification, payload) {
-        this.log(`>>> socketNotificationReceived: Received notification: ${notification}`); // Log ALL incoming notifications
+        this.log(`>>> socketNotificationReceived: Received notification: ${notification}`);
         this.debugLog(`Received notification details: ${notification}`, payload || "");
 
         switch (notification) {
@@ -187,7 +195,7 @@ module.exports = NodeHelper.create({
                 this.debug = payload.debug || false;
                 this.log(`>>> socketNotificationReceived: About to call initializeLiveGenAPI...`);
                 try {
-                     this.initializeLiveGenAPI(payload.apiKey); // Call async function
+                     this.initializeLiveGenAPI(payload.apiKey);
                      this.log(`>>> socketNotificationReceived: Called initializeLiveGenAPI.`);
                 } catch (error) {
                     this.error(">>> socketNotificationReceived: Error occurred synchronously when CALLING initializeLiveGenAPI:", error);
@@ -209,7 +217,6 @@ module.exports = NodeHelper.create({
                     this.warn(`Already recording. Ignoring START_CONTINUOUS_RECORDING request.`);
                     return;
                 }
-                // *** Call startRecording ***
                 this.startRecording();
                 break;
 
@@ -236,7 +243,7 @@ module.exports = NodeHelper.create({
 
         this.isRecording = true;
         this.log(">>> startRecording: Sending RECORDING_STARTED to frontend.");
-        this.sendToFrontend("RECORDING_STARTED"); // Notify frontend recording has begun
+        this.sendToFrontend("RECORDING_STARTED");
 
         const recorderOptions = {
             sampleRate: INPUT_SAMPLE_RATE,
@@ -246,7 +253,7 @@ module.exports = NodeHelper.create({
             bits: BITS,
             device: RECORDING_DEVICE,
             debug: this.debug,
-            threshold: 0, // Record continuously
+            threshold: 0,
         };
         this.log(">>> startRecording: Recorder options:", recorderOptions);
         this.log(`>>> startRecording: Using input MIME Type: ${GEMINI_INPUT_MIME_TYPE}`);
@@ -272,8 +279,6 @@ module.exports = NodeHelper.create({
                 try {
                     const sendTime = new Date().toISOString();
                     const payloadToSend = { media: { mimeType: GEMINI_INPUT_MIME_TYPE, data: base64Chunk } };
-                    // Optional verbose logging:
-                    // this.log(`[${sendTime}] Sending Payload JSON to Gemini:`, JSON.stringify(payloadToSend, null, 2));
                     this.debugLog(`[${sendTime}] Attempting sendRealtimeInput for chunk #${++chunkCounter}...`);
                     await this.liveSession.sendRealtimeInput(payloadToSend);
                     this.debugLog(`[${new Date().toISOString()}] sendRealtimeInput succeeded.`);
@@ -502,87 +507,54 @@ module.exports = NodeHelper.create({
                     channels: CHANNELS,
                     bitDepth: BITS,
                     sampleRate: OUTPUT_SAMPLE_RATE,
-                    // device: 'plughw:1,0' // Keep commented out unless needed for specific device targeting
                 });
 
                 // --- Setup listeners ONCE per speaker instance ---
                 this.persistentSpeaker.on('error', (err) => {
                     this.error('Persistent Speaker Error:', err);
-                    // Speaker is likely unusable now
-                    if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) {
-                         try { this.persistentSpeaker.destroy(); } catch (e) { this.error("Error destroying speaker on error:", e); }
-                    }
-                    this.persistentSpeaker = null; // Mark as unusable
-                    this.processingQueue = false; // Allow recreation on next call
-                    // Don't automatically clear queue, let next _processQueue call try again if queue still has items
+                    if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) { try { this.persistentSpeaker.destroy(); } catch (e) { this.error("Error destroying speaker on error:", e); } }
+                    this.persistentSpeaker = null; this.processingQueue = false;
                 });
-
                 this.persistentSpeaker.on('close', () => {
-                    // This indicates the speaker instance was closed/destroyed
                     this.log('Persistent Speaker Closed.');
-                    this.persistentSpeaker = null; // Mark as unusable
-                    this.processingQueue = false; // Allow recreation on next call
+                    this.persistentSpeaker = null; this.processingQueue = false;
                 });
-
-                // Optional: Listen for other events if needed for debugging
-                this.persistentSpeaker.on('open', () => this.debugLog('Persistent Speaker opened for playback.'));
-                this.persistentSpeaker.on('flush', () => this.debugLog('Persistent Speaker flushed. Buffer likely empty.')); // Might be useful
-
+                this.persistentSpeaker.on('open', () => this.debugLog('Persistent Speaker opened.'));
+                this.persistentSpeaker.on('flush', () => this.debugLog('Persistent Speaker flushed.'));
                 // --- End Listeners ---
-
             } catch (e) {
                  this.error('Failed to create persistent speaker:', e);
-                 this.processingQueue = false; // Stop processing this cycle
-                 this.persistentSpeaker = null; // Ensure it's null
-                 return; // Cannot proceed
+                 this.processingQueue = false; this.persistentSpeaker = null; return;
             }
         }
 
-        // Ensure speaker was created successfully or already exists
-        // This check might be redundant if creation errors are handled above, but safe
         if (!this.persistentSpeaker) {
              this.error("Cannot process queue, speaker instance is not available.");
-             this.processingQueue = false;
-             return;
+             this.processingQueue = false; return;
         }
 
         // Process one chunk at a time recursively using the write callback
-        const chunkBase64 = this.audioQueue.shift(); // Take from front
-        // Check if chunk is valid (safety check)
+        const chunkBase64 = this.audioQueue.shift();
         if (!chunkBase64) {
              this.warn("_processQueue: Dequeued an empty or invalid chunk.");
-             this.processingQueue = false; // Mark this attempt as done
-             this._processQueue(); // Immediately try next item
-             return;
+             this.processingQueue = false; this._processQueue(); return;
         }
 
         const buffer = Buffer.from(chunkBase64, 'base64');
-        this.log(`Writing chunk (length ${buffer.length}) to speaker. Queue size remaining: ${this.audioQueue.length}`);
+        this.log(`Writing chunk (length ${buffer.length}) to speaker. Queue remaining: ${this.audioQueue.length}`);
 
-        // Write the buffer. The callback tells us when this *specific* buffer
-        // has been flushed from Node's perspective, not necessarily when fully played by hardware.
         this.persistentSpeaker.write(buffer, (err) => {
             if (err) {
                 this.error("Error writing buffer to persistent speaker:", err);
-                // An error during write likely means the speaker is bad
-                if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) {
-                    try { this.persistentSpeaker.destroy(); } catch (e) { this.error("Error destroying speaker on write error:", e); }
-                }
-                this.persistentSpeaker = null; // Mark as unusable
-                this.processingQueue = false; // Allow recreation on next call
-                // Consider re-queueing the failed chunk? For now, we drop it and let next cycle try.
+                if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) { try { this.persistentSpeaker.destroy(); } catch (e) { this.error("Error destroying speaker on write error:", e); } }
+                this.persistentSpeaker = null; this.processingQueue = false;
             } else {
                 this.debugLog(`Finished writing chunk.`);
-                // Buffer write accepted, allow next chunk processing immediately
-                 this.processingQueue = false; // Mark this chunk done
-                 this._processQueue(); // Call again to process next item if any
+                this.processingQueue = false; // Mark this chunk done
+                this._processQueue(); // Call again immediately to process next item if any
             }
         });
     }, // --- End _processQueue ---
-
-
-    // --- playAudio Function (REMOVED) ---
-
 
     // --- Stop Helper ---
      stop: function() {

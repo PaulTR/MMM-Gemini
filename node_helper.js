@@ -353,11 +353,14 @@ module.exports = NodeHelper.create({
         this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
         this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
         let responsePayload = { text: null, audio: null, feedback: null };
+        
         if (message?.setupComplete) { /* ... */ return; }
+
+        // Check if audio
         let extractedAudioData = null;
         try { extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data; }
         catch (e) { this.error("Error accessing audio data:", e); }
-        if (message?.response?.promptFeedback) { /* Handle feedback */ }
+        
         if (extractedAudioData) {
              if (!responsePayload.feedback?.blockReason) { // Check if not blocked
                  this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
@@ -367,6 +370,16 @@ module.exports = NodeHelper.create({
                  this._processQueue();
              } else { this.log("Audio data present but response was blocked."); }
         } else { if (!responsePayload.feedback?.blockReason) { this.warn(`No audio data found...`); } }
+        
+        // Check if text response
+        let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
+        if( extractedTextData ) {
+            if (!responsePayload.feedback?.blockReason) { // Check if not blocked
+                 responsePayload.text = text;
+             } else { this.log("Audio data present but response was blocked."); }
+        }
+
+
         if (responsePayload.audio || responsePayload.text || responsePayload.feedback) { this.sendToFrontend("GEMINI_RESPONSE", responsePayload); }
         else { this.warn(`Not sending GEMINI_RESPONSE notification...`); }
     },

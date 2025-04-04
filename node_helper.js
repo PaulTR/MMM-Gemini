@@ -95,6 +95,7 @@ module.exports = NodeHelper.create({
             
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
+                vertexai: false,
                 httpOptions: { 'apiVersion': 'v1alpha' } // v1alpha required at time of making this. Likely to change in the future
             })
 
@@ -521,7 +522,7 @@ module.exports = NodeHelper.create({
              this.error("Error trying to access audio data in serverContent structure:", e)
         }
 
-        // Queue Audio Data if found (and not blocked)
+        // Queue Audio Data if found
         if (extractedAudioData) {
             this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`)
             this.audioQueue.push(extractedAudioData)
@@ -541,6 +542,7 @@ module.exports = NodeHelper.create({
                 switch(functionName) {
                 case "generate_image": // TODO think about moving this into its own function
                     this.log("****** Entering image generate ******")
+                    this.log(`****** prompt ****** : ${generateImagePrompt}`)
                     const response = this.genAI.models.generateImages({
                         model: 'imagen-3.0-generate-002',
                         prompt: generateImagePrompt,

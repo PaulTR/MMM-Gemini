@@ -1,39 +1,41 @@
 /* MMM-Template.css */
 
-.gemini-audio .status {
+.mmm-template-gemini .status {
   margin-bottom: 5px; /* Space below main status */
 }
 
-.gemini-audio .detailed-status {
+.mmm-template-gemini .detailed-status {
   margin-bottom: 10px; /* Space below detailed status */
   font-style: italic;
 }
 
-.gemini-audio .response {
+.mmm-template-gemini .response {
   margin-top: 10px; /* Space above response */
   padding: 5px;
   border-left: 2px solid #444; /* Subtle indicator for response block */
+  font-size: 4em;
+  color: #fff;
 }
 
 /* You can add more specific styling for bright, dimmed, small, medium, light etc.
    if your MagicMirror theme doesn't define them adequately */
 
-.gemini-audio .bright {
+.mmm-template-gemini .bright {
     /* Example: color: #eee; */
 }
 
-.gemini-audio .dimmed {
+.mmm-template-gemini .dimmed {
     /* Example: color: #aaa; */
 }
 
-.gemini-audio .small {
+.mmm-template-gemini .small {
     /* Example: font-size: 0.8em; */
 }
 
-.gemini-audio .medium {
+.mmm-template-gemini .medium {
     /* Example: font-size: 1em; */
 }
 
-.gemini-audio .light {
+.mmm-template-gemini .light {
    /* Example: color: #ccc; */
 }

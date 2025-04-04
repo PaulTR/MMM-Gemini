@@ -10,7 +10,7 @@ Module.register("MMM-Template", {
     showIndicators: true,
     
     // Simplified indicators
-    // Spinning ring - little glitchy - spins funny over existing text, but will deal with later
+    // Spinning ring
     initializingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="grey" /><circle cx="50" cy="50" r="30" fill="white" /><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite"/></svg>`,    
     // Pulsing red circle
     recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="r" dur="1.2s" values="35;40;35" repeatCount="indefinite" /></circle></svg>`,
@@ -108,15 +108,15 @@ Module.register("MMM-Template", {
     }
 
 
-        textDiv.appendChild(currentStatusSpan)
-        textDiv.appendChild(responseSpan)
+    textDiv.appendChild(currentStatusSpan)
+    textDiv.appendChild(responseSpan)
+
+    wrapper.appendChild(textDiv)
 
     // Append indicator only if it's not empty
     if (indicator) {
        wrapper.appendChild(statusDiv)
     }
-    wrapper.appendChild(textDiv)
-
 
     return wrapper
   },

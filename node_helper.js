@@ -497,7 +497,7 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
+        // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
 
         if (message?.setupComplete) {
             this.log("Received setupComplete message from Gemini (ignoring for playback).")
@@ -529,6 +529,29 @@ module.exports = NodeHelper.create({
             return
         } else {
              this.log(`Received Gemini message but found no 'audio' data in the expected location.`)
+        }
+
+        let functioncall = message?.toolCall?.functionCalls?.[0]
+
+        if(functioncall) {
+            // Only checking for image generation as a function call
+            let functionName = functioncall.name
+            let generateImagePrompt = functioncall.args?.image_prompt
+            if(functionName && prompt) {
+                switch(functionName) {
+                case "generate_image": 
+                    const response = this.genAI.models.generateImages({
+                        model: 'imagen-3.0-generate-002',
+                        prompt: generateImagePrompt,
+                        config: {
+                            numberOfImages: 1,
+                            includeRaiReason: true
+                        },
+                    })
+                    this.log(`Received image response from Gemini:`, JSON.stringify(response, null, 2))
+                    // TODO handle RaiReason
+                }
+            }
         }
 
         /*

@@ -69,8 +69,8 @@ module.exports = NodeHelper.create({
         this.debug = false
     },
 
-    async initializeLiveGenAPI(apiKey) {
-        this.log(">>> initializeLiveGenAPI called.")
+    async initialize(apiKey) {
+        this.log(">>> initialize called.")
 
         if (this.apiInitialized || this.apiInitializing) {
             this.warn(`API initialization already complete or in progress. Initialized: ${this.apiInitialized}, Initializing: ${this.apiInitializing}`)
@@ -160,6 +160,10 @@ module.exports = NodeHelper.create({
 
                         if (wasOpen) { 
                             this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly.` })
+                            // *** This might cause a loop if things go poorly, but the goal is that when the live connection automatically times out, we can just reopen.
+                            // Not ideal if you're looking to constantly have your mirror running, you may want to add some logic to detect a volume threshold, then initialize everything
+                            // but for a demo, this is good enough
+                            initialize(apiKey)
                         }
                         else { 
                             this.log("Live Connection closed normally or was already closed.")
@@ -168,10 +172,10 @@ module.exports = NodeHelper.create({
                 },
 
                 config: {
-                    // responseModalities: [Modality.AUDIO],
-                    responseModalities: [Modality.TEXT],
+                    responseModalities: [Modality.AUDIO],
+                    // responseModalities: [Modality.TEXT],
                     systemInstruction: {
-                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
+                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
                     // tools: [] // Keep your commented preference
                 },
@@ -196,6 +200,8 @@ module.exports = NodeHelper.create({
 
             this.sendToFrontend("HELPER_ERROR", { error: `API Initialization failed: ${error.message || error}` })
         }
+
+        _initializePersistentSpeaker()
     },
 
 
@@ -215,13 +221,13 @@ module.exports = NodeHelper.create({
 
                 this.debug = payload.debug || false
 
-                this.log(`>>> socketNotificationReceived: About to call initializeLiveGenAPI...`)
+                this.log(`>>> socketNotificationReceived: About to call initialize...`)
 
                 try {
-                     this.initializeLiveGenAPI(payload.apiKey)
-                     this.log(`>>> socketNotificationReceived: Called initializeLiveGenAPI.`)
+                     this.initialize(payload.apiKey)
+                     this.log(`>>> socketNotificationReceived: Called initialize.`)
                 } catch (error) {
-                    this.error(">>> socketNotificationReceived: Error occurred synchronously when CALLING initializeLiveGenAPI:", error)
+                    this.error(">>> socketNotificationReceived: Error occurred synchronously when CALLING initialize:", error)
                 }
                 break
 
@@ -232,7 +238,7 @@ module.exports = NodeHelper.create({
                     this.sendToFrontend("HELPER_ERROR", { error: "Cannot record: API connection not ready." })
                     if (!this.apiInitialized && !this.apiInitializing && this.apiKey) {
                          this.warn("Attempting to re-initialize API connection...")
-                         this.initializeLiveGenAPI(this.apiKey)
+                         this.initialize(this.apiKey)
                     }
                     return
                 }
@@ -241,11 +247,6 @@ module.exports = NodeHelper.create({
                     return
                 }
                 this.startRecording()
-                break
-
-            case "STOP_CONNECTION":
-                this.log(`>>> socketNotificationReceived: Handling STOP_CONNECTION.`)
-                this.stop()
                 break
         }
     },
@@ -552,49 +553,7 @@ module.exports = NodeHelper.create({
         this.log(`_processQueue started. Queue size: ${this.audioQueue.length}`)
 
         // Ensure speaker exists and is ready, create if needed
-        // TODO consider building this in the initialization step with the session.
-        //      It works here, but could be better handled somewhere else. Leaving
-        //      for now because *it works*, and I don't feel like breaking things
-        if (!this.persistentSpeaker || this.persistentSpeaker.destroyed) {
-            this.log("Creating new persistent speaker instance.")
-            try {
-                this.persistentSpeaker = new Speaker({
-                    channels: CHANNELS,
-                    bitDepth: BITS,
-                    sampleRate: OUTPUT_SAMPLE_RATE,
-                })
-
-                // --- Setup listeners once per speaker instance ---
-                this.persistentSpeaker.on('error', (err) => {
-                    this.error('Persistent Speaker Error:', err)
-                    if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) { 
-                        try { 
-                            this.persistentSpeaker.destroy()
-                        } catch (e) {
-                            this.error("Error destroying speaker on error:", e)
-                        }
-                    }
-
-                    this.persistentSpeaker = null
-                    this.processingQueue = false
-                })
-
-                this.persistentSpeaker.on('close', () => {
-                    this.log('Persistent Speaker Closed.')
-                    this.persistentSpeaker = null
-                    this.processingQueue = false
-                })
-
-                this.persistentSpeaker.on('open', () => this.log('Persistent Speaker opened.'))
-                this.persistentSpeaker.on('flush', () => this.log('Persistent Speaker flushed.'))
-
-            } catch (e) {
-                this.error('Failed to create persistent speaker:', e)
-                this.processingQueue = false
-                this.persistentSpeaker = null
-                return
-            }
-        }
+        _initializePersistentSpeaker()
 
         if (!this.persistentSpeaker) {
              this.error("Cannot process queue, speaker instance is not available.")
@@ -636,71 +595,46 @@ module.exports = NodeHelper.create({
         })
     },
 
-     stop: function() {
-        this.log(`Stopping node_helper...`)
-
-        // 1. Force stop audio recording process
-        this.stopRecording(true)
-
-        // 2. Clear the audio playback queue
-        this.log(`Clearing audio queue (size: ${this.audioQueue.length})`)
-        this.audioQueue = []
-
-        // Reset processing flag
-        this.processingQueue = false
-
-        // 3. Close and destroy the persistent speaker if it exists
-        if (this.persistentSpeaker) {
-            this.log("Closing persistent speaker.")
+    _initializePersistentSpeaker() {
+        if (!this.persistentSpeaker || this.persistentSpeaker.destroyed) {
+            this.log("Creating new persistent speaker instance.")
             try {
-                // Prefer end() for graceful shutdown, but fallback to destroy()
-                if (typeof this.persistentSpeaker.end === 'function') {
-                    this.persistentSpeaker.end() // Gracefully end the stream
-                    this.log("Called persistentSpeaker.end()")
-                } else if (typeof this.persistentSpeaker.destroy === 'function') {
-                     this.persistentSpeaker.destroy() // Force destroy if end not available
-                     this.log("Called persistentSpeaker.destroy()")
-                }
+                this.persistentSpeaker = new Speaker({
+                    channels: CHANNELS,
+                    bitDepth: BITS,
+                    sampleRate: OUTPUT_SAMPLE_RATE,
+                })
+
+                // --- Setup listeners once per speaker instance ---
+                this.persistentSpeaker.on('error', (err) => {
+                    this.error('Persistent Speaker Error:', err)
+                    if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) { 
+                        try { 
+                            this.persistentSpeaker.destroy()
+                        } catch (e) {
+                            this.error("Error destroying speaker on error:", e)
+                        }
+                    }
+
+                    this.persistentSpeaker = null
+                    this.processingQueue = false
+                })
+
+                this.persistentSpeaker.on('close', () => {
+                    this.log('Persistent Speaker Closed.')
+                    this.persistentSpeaker = null
+                    this.processingQueue = false
+                })
+
+                this.persistentSpeaker.on('open', () => this.log('Persistent Speaker opened.'))
+                this.persistentSpeaker.on('flush', () => this.log('Persistent Speaker flushed.'))
+
             } catch (e) {
-                this.error("Error closing persistent speaker:", e)
-            } finally {
-                this.persistentSpeaker = null // Clear reference
+                this.error('Failed to create persistent speaker:', e)
+                this.processingQueue = false
+                this.persistentSpeaker = null
+                return
             }
-        } else {
-            this.log("No persistent speaker instance to close.")
-        }
-
-        // 4. Close the Google API live session
-        if (this.liveSession) {
-            this.log(`Closing live session explicitly...`)
-            try {
-                // Check if close method exists and if we think connection is open
-                if (typeof this.liveSession.close === 'function' && this.connectionOpen) {
-                    this.liveSession.close()
-                    this.log(`liveSession.close() called.`)
-                } else if (typeof this.liveSession.close !== 'function') {
-                    this.warn(`liveSession object does not have a close method.`)
-                } else {
-                     this.log(`liveSession was already considered closed (connectionOpen: ${this.connectionOpen}). Not calling close().`)
-                }
-            } catch (e) {
-                 this.error(`Error closing live session during stop():`, e)
-            }
-        } else {
-             this.log("No active liveSession object to close.")
-        }
-
-        // 5. Reset all state variables to initial values
-        this.liveSession = null
-        this.apiInitialized = false
-        this.connectionOpen = false
-        this.apiInitializing = false
-        this.isRecording = false
-        this.recordingProcess = null
-        this.genAI = null
-        this.apiKey = null
-        // Note: Queue and speaker ref already cleared above
-
-        this.log(`Node_helper stopped.`)
+        },
     }
 })

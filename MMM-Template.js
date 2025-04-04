@@ -183,18 +183,4 @@ Module.register("MMM-Template", {
 
     this.updateDom()
   },
-
-  // Maybe not used anymore. Confirm.
-  stop: function() {
-    Log.info(`Stopping module: ${this.name}`)
-    this.currentState = "SHUTDOWN"
-    this.currentStatusText = "Shutting down..."
-    this.helperReady = false
-    this.updateDom() // Show shutting down state
-
-        // Notify helper to clean up its resources (stop recording, close connection)
-        Log.info(`${this.name}: Sending STOP_CONNECTION notification.`)
-    this.sendSocketNotification("STOP_CONNECTION")
-  }
-
 })

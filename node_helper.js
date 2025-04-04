@@ -537,9 +537,9 @@ module.exports = NodeHelper.create({
             // Only checking for image generation as a function call
             let functionName = functioncall.name
             let generateImagePrompt = functioncall.args?.image_prompt
-            if(functionName && prompt) {
+            if(functionName && generateImagePrompt) {
                 switch(functionName) {
-                case "generate_image": 
+                case "generate_image": // TODO think about moving this into its own function
                     const response = this.genAI.models.generateImages({
                         model: 'imagen-3.0-generate-002',
                         prompt: generateImagePrompt,

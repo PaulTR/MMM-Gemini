@@ -1,21 +1,15 @@
-/* global Module, Log, Buffer */
-
 Module.register("MMM-Template", {
   defaults: {
-    // Display content
     statusText: "Initializing...",
     apiKey: "", // MUST be set in config.js
 
-    // Visual feedback
     showIndicators: true,
 
-    // Simplified indicators (SVGs remain the same)
     initializingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="white"><animate attributeName="r" dur="1.2s" values="35;40;35" repeatCount="indefinite" /></circle></svg>`,
     recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="r" dur="1.2s" values="35;40;35" repeatCount="indefinite" /></circle></svg>`,
     errorIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#333" /><line x1="30" y1="30" x2="70" y2="70" stroke="red" stroke-width="10" /><line x1="70" y1="30" x2="30" y2="70" stroke="red" stroke-width="10" /></svg>`,
   },
 
-  // --- Module State ---
   currentState: "INITIALIZING",
   currentStatusText: "",
   lastResponseText: "",
@@ -46,30 +40,29 @@ Module.register("MMM-Template", {
 
   getDom() {
     const wrapper = document.createElement("div")
-    wrapper.className = "mmm-template-gemini" // Main container class
+    wrapper.className = "mmm-template-gemini"
 
-    // --- Create Text Container ---
     const textDiv = document.createElement("div")
-    textDiv.className = "text-container" // Class for the text block
+    textDiv.className = "text-container"
 
     // Current Status Text
     const currentStatusSpan = document.createElement("div")
     currentStatusSpan.className = "current-status"
-    currentStatusSpan.innerHTML = this.currentStatusText || "&nbsp;" // Use non-breaking space if empty to maintain height
+    currentStatusSpan.innerHTML = this.currentStatusText || "&nbsp;"
     textDiv.appendChild(currentStatusSpan)
 
-    // Response Text (conditionally displayed)
+    // Response Text (if in Modality.TEXT mode)
     const responseSpan = document.createElement("div")
     responseSpan.className = "response"
-    // Show response only if not initializing/erroring and there is text
-    // Or maybe always show the container but hide content? Let's stick to conditional content for now.
+    
     if ((this.currentState === "RECORDING" || this.currentState === "READY") && this.lastResponseText) {
        responseSpan.innerHTML = `${this.lastResponseText}`
-       responseSpan.style.display = '' // Ensure it's visible
+       responseSpan.style.display = ''
     } else {
-       responseSpan.innerHTML = "&nbsp;" // Use non-breaking space if empty
-       responseSpan.style.display = 'none' // Hide if no text relevant
+       responseSpan.innerHTML = "&nbsp;"
+       responseSpan.style.display = 'none'
     }
+
     textDiv.appendChild(responseSpan)
 
     // --- Create Indicator ---
@@ -87,25 +80,18 @@ Module.register("MMM-Template", {
             indicatorSvg = this.config.errorIndicatorSvg
             break
         case "SHUTDOWN":
-             indicatorSvg = "" // No indicator
+             indicatorSvg = ""
              break
         default:
-          indicatorSvg = this.config.errorIndicatorSvg // Default to error
+          indicatorSvg = this.config.errorIndicatorSvg
           break
       }
     }
 
     const statusDiv = document.createElement("div")
     statusDiv.className = "status-indicator"
-    if (indicatorSvg) {
-        statusDiv.innerHTML = indicatorSvg
-    } else {
-        // If no SVG, ensure the div doesn't take up space or affect layout
-        statusDiv.style.display = 'none'
-    }
+    statusDiv.innerHTML = indicatorSvg
 
-    // --- Assemble Wrapper ---
-    // Structure: Indicator first, then Text. CSS will handle layout.
     wrapper.appendChild(statusDiv)
     wrapper.appendChild(textDiv)
 
@@ -155,7 +141,7 @@ Module.register("MMM-Template", {
         }
         break
       case "GEMINI_TEXT_RESPONSE":
-        this.currentStatusText = "Listening..." // Keep it less chatty
+        this.currentStatusText = ""
         if( this.turnComplete ) {
           this.lastResponseText = payload.text // Start new response
           this.turnComplete = false
@@ -166,7 +152,7 @@ Module.register("MMM-Template", {
         break
       case "GEMINI_TURN_COMPLETE":
         this.turnComplete = true
-        this.currentStatusText = "Listening..." // Go back to listening status
+        this.currentStatusText = "Listening..."
         break
       case "HELPER_ERROR":
         this.currentState = "ERROR"
@@ -176,9 +162,8 @@ Module.register("MMM-Template", {
         shouldClearResponse = true
         break
       default:
-          // Unhandled notification
           Log.warn(`${this.name} received unhandled notification: ${notification}`)
-          break // Added default case
+          break 
     }
 
     // Clear response text if needed (e.g., on state change, error)

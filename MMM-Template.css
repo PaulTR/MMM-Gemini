@@ -1,69 +1,55 @@
-/* MMM-Template.css */
-/* Styles for the MMM-Template module */
-/* Last updated: 2025-04-04 */
 
-/* Main container for the module */
 .mmm-template-gemini {
   display: flex;
-  flex-direction: column; /* Stack items vertically */
-  justify-content: center; /* Center vertically if module has extra height */
-  align-items: center; /* Center items horizontally */
-  width: 100%; /* Take full width of its region */
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
   padding: 10px;
   box-sizing: border-box;
-  gap: 10px; /* Add space between the text container and the indicator */
+  gap: 10px;
 }
 
-/* Container for all text elements */
 .mmm-template-gemini .text-container {
-  order: 1; /* Display text block FIRST visually */
+  order: 1;
   display: flex;
-  flex-direction: column; /* Stack status and response vertically */
-  align-items: center; /* Center text lines horizontally */
-  text-align: center; /* Ensure text inside is centered */
-  /* Removed width: 100%; Let flexbox center it based on content */
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
-/* Container for the status indicator (SVG) */
 .mmm-template-gemini .status-indicator {
-  order: 2; /* Display indicator SECOND visually (below text) */
-  width: 50px; /* Explicitly set width to match SVG */
-  height: 50px; /* Explicitly set height to match SVG */
-  flex-shrink: 0; /* Prevent indicator from shrinking */
-  margin: 0; /* Ensure no default margins are interfering */
-  padding: 0; /* Ensure no default padding is interfering */
-  /* align-items: center on the parent should horizontally center this block */
-  /* The SVG inside should fill this block */
+  order: 2;
+  width: 50px;
+  height: 50px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
 }
 
-/* Styling for the current status text (e.g., "Listening...") */
 .mmm-template-gemini .current-status {
-  font-size: 2em; /* Larger status text */
-  color: #FFF; /* White text */
-  line-height: 1.2; /* Adjust line height for larger font */
-  margin-bottom: 5px; /* Space between status and response */
+  font-size: 2em;
+  color: #FFF;
+  line-height: 1.2;
+  margin-bottom: 5px;
 }
 
-/* Styling for the response text from Gemini */
 .mmm-template-gemini .response {
-  font-size: 3em; /* Larger response text */
-  color: #FFF; /* White text */
-  line-height: 1.1; /* Adjust line height */
-  margin-top: 10px; /* Space above response */
+  font-size: 3em;
+  color: #FFF;
+  line-height: 1.1;
+  margin-top: 10px;
   padding: 5px;
-  max-width: 90%; /* Prevent very long responses from breaking layout badly */
-  word-wrap: break-word; /* Wrap long words */
+  max-width: 90%;
+  word-wrap: break-word;
 }
 
-/* Hide indicator div cleanly if it has no SVG content */
 .mmm-template-gemini .status-indicator:empty {
     display: none;
 }
 
-/* Optional: Explicitly target SVG if needed */
-/* Ensure SVG takes up the container space and verify internal centering */
 .mmm-template-gemini .status-indicator svg {
-  display: block; /* Make it behave like a block element */
-  width: 100%; /* Make SVG fill the 50px container width */
-  height: 100%; /* Make SVG fill the 50px container height */
+  display: block;
+  width: 100%;
+  height: 100%;
 }

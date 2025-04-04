@@ -47,13 +47,7 @@ module.exports = NodeHelper.create({
     warn: function(...args) {
         console.warn(`[${new Date().toISOString()}] NodeHelper (${this.name}):`, ...args)
     },
-    debugLog: function(...args) {
-        if (this.debug) {
-            console.log(`[${new Date().toISOString()}] NodeHelper (${this.name}) DEBUG:`, ...args)
-        }
-    },
     sendToFrontend: function(notification, payload) {
-        this.debugLog(`Sending notification: ${notification}`, payload || "")
         this.sendSocketNotification(notification, payload)
     },
     sendHelperLog: function(message) {
@@ -200,19 +194,22 @@ module.exports = NodeHelper.create({
 
     // --- Socket Notification Handler ---
     socketNotificationReceived: async function(notification, payload) {
-        // this.log(`>>> socketNotificationReceived: Received notification: ${notification}`);
-        // this.debugLog(`Received notification details: ${notification}`, payload || "");
+        // this.log(`>>> socketNotificationReceived: Received notification: ${notification}`)
 
         switch (notification) {
             case "START_CONNECTION":
-                this.log(`>>> socketNotificationReceived: Handling START_CONNECTION.`);
+                this.log(`>>> socketNotificationReceived: Handling START_CONNECTION.`)
+
                 if (!payload || !payload.apiKey) {
-                    this.error(`START_CONNECTION received without API key.`);
-                    this.sendToFrontend("HELPER_ERROR", { error: "API key not provided by frontend." });
-                    return;
+                    this.error(`START_CONNECTION received without API key.`)
+                    this.sendToFrontend("HELPER_ERROR", { error: "API key not provided by frontend." })
+                    return
                 }
-                this.debug = payload.debug || false;
-                this.log(`>>> socketNotificationReceived: About to call initializeLiveGenAPI...`);
+
+                this.debug = payload.debug || false
+
+                this.log(`>>> socketNotificationReceived: About to call initializeLiveGenAPI...`)
+
                 try {
                      this.initializeLiveGenAPI(payload.apiKey);
                      this.log(`>>> socketNotificationReceived: Called initializeLiveGenAPI.`);
@@ -288,18 +285,18 @@ module.exports = NodeHelper.create({
                 const checkTime = new Date().toISOString();
                 if (!this.isRecording || !this.connectionOpen || !this.liveSession) {
                     if (this.isRecording) { this.warn(`[${checkTime}] Recording stopping: Session/Connection invalid...`); this.stopRecording(true); }
-                    else { this.debugLog("Ignoring data chunk, recording stopped."); }
+                    else { this.log("Ignoring data chunk, recording stopped."); }
                     return;
                 }
-                if (chunk.length === 0) { this.debugLog(`[${checkTime}] Received empty data chunk #${++chunkCounter}. Skipping.`); return; }
+                if (chunk.length === 0) { this.log(`[${checkTime}] Received empty data chunk #${++chunkCounter}. Skipping.`); return; }
 
                 const base64Chunk = chunk.toString('base64');
                 try {
                     const sendTime = new Date().toISOString();
                     const payloadToSend = { media: { mimeType: GEMINI_INPUT_MIME_TYPE, data: base64Chunk } };
-                    this.debugLog(`[${sendTime}] Attempting sendRealtimeInput for chunk #${++chunkCounter}...`);
+                    this.log(`[${sendTime}] Attempting sendRealtimeInput for chunk #${++chunkCounter}...`);
                     await this.liveSession.sendRealtimeInput(payloadToSend);
-                    this.debugLog(`[${new Date().toISOString()}] sendRealtimeInput succeeded.`);
+                    this.log(`[${new Date().toISOString()}] sendRealtimeInput succeeded.`);
                 } catch (apiError) {
                     const errorTime = new Date().toISOString();
                     this.error(`[${errorTime}] Error sending audio chunk #${chunkCounter}:`, apiError);
@@ -334,7 +331,7 @@ module.exports = NodeHelper.create({
                     this.error(`Recording process exited unexpectedly.`);
                     this.sendToFrontend("HELPER_ERROR", { error: `Recording process stopped (code: ${code}, signal: ${signal})` });
                     this.stopRecording(true);
-                 } else { this.debugLog(`Recording process exited normally.`); }
+                 } else { this.log(`Recording process exited normally.`); }
                  this.recordingProcess = null;
             });
 
@@ -353,7 +350,7 @@ module.exports = NodeHelper.create({
     stopRecording(force = false) {
         // Check if there is an active recording process instance
         if (!this.recordingProcess) {
-             this.debugLog(`stopRecording called but no recording process instance exists.`);
+             this.log(`stopRecording called but no recording process instance exists.`);
              // Check for state discrepancy
              if (this.isRecording) {
                   this.warn("State discrepancy: isRecording was true but no process found. Resetting state.");
@@ -374,7 +371,7 @@ module.exports = NodeHelper.create({
                 const stream = this.recordingProcess.stream();
                 if (stream) {
                     // Remove listeners to prevent memory leaks or handling events after stop
-                    this.debugLog("Removing stream listeners ('data', 'error', 'end').");
+                    this.log("Removing stream listeners ('data', 'error', 'end').");
                     stream.removeAllListeners('data');
                     stream.removeAllListeners('error');
                     stream.removeAllListeners('end');
@@ -383,12 +380,12 @@ module.exports = NodeHelper.create({
 
                  if (this.recordingProcess.process) {
                      // Remove process exit listener
-                     this.debugLog("Removing process listener ('exit').");
+                     this.log("Removing process listener ('exit').");
                      this.recordingProcess.process.removeAllListeners('exit');
 
                      // Attempt to kill the underlying process (e.g., arecord)
                       // Gently first (SIGTERM), then forcefully (SIGKILL) if needed
-                      this.debugLog("Sending SIGTERM to recording process.");
+                      this.log("Sending SIGTERM to recording process.");
                       this.recordingProcess.process.kill('SIGTERM');
                       // Give it a moment to exit gracefully before forcing
                       setTimeout(() => {
@@ -424,7 +421,7 @@ module.exports = NodeHelper.create({
             }
         } else {
             // This case means stopRecording() was called, but isRecording was already false
-            this.debugLog(`stopRecording called, but isRecording flag was already false.`);
+            this.log(`stopRecording called, but isRecording flag was already false.`);
              // Defensive cleanup if process still exists somehow (shouldn't happen with proper state management)
             if (this.recordingProcess) {
                  this.warn("stopRecording called while isRecording=false, but process existed. Forcing cleanup.");
@@ -436,8 +433,7 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
-        this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
+        // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
 
         let responsePayload = { text: null, audio: null, feedback: null };
 
@@ -470,16 +466,11 @@ module.exports = NodeHelper.create({
         if (extractedAudioData) {
             this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
             responsePayload.audio = extractedAudioData; // Keep for frontend notification
-            // *** ADD TO QUEUE ***
             this.audioQueue.push(extractedAudioData);
             this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
-            // *** DO NOT trigger _processQueue immediately anymore ***
+            return
         } else {
-             // Log if no audio data was found (and not due to blocking)
-             if (!responsePayload.feedback?.blockReason) {
-                this.warn(`Received Gemini message but found no 'audio' data in the expected location.`);
-                this.debugLog("Full message for no-audio case:", util.inspect(message, {depth: 5}));
-             }
+             this.log(`Received Gemini message but found no 'audio' data in the expected location.`);
         }
 
         // --- Check for Turn Complete signal to START playback ---
@@ -491,7 +482,7 @@ module.exports = NodeHelper.create({
                  // *** START QUEUE PROCESSING HERE ***
                  this._processQueue(); // Start playing the queued audio for this completed turn
             } else {
-                this.debugLog("Turn complete, but audio queue is empty (perhaps audio was blocked or not sent).");
+                this.log("Turn complete, but audio queue is empty (perhaps audio was blocked or not sent).");
                  // Ensure processing flag is false if queue is empty on turn complete
                  this.processingQueue = false;
             }
@@ -501,21 +492,22 @@ module.exports = NodeHelper.create({
          // Notification is sent as chunks arrive, even if playback waits for turnComplete
         if (responsePayload.audio || responsePayload.text || responsePayload.feedback) {
              this.sendToFrontend("GEMINI_RESPONSE", responsePayload);
+             return
         } else {
             this.warn(`Not sending GEMINI_RESPONSE notification as no actionable content was extracted.`);
         }
-    }, // --- End handleGeminiResponse ---
+    },
 
     // --- Process the Audio Playback Queue ---
     _processQueue() {
         // Prevent re-entry if already processing or queue is empty
         if (this.processingQueue || this.audioQueue.length === 0) {
-            this.debugLog(`_processQueue called but skipping. Processing: ${this.processingQueue}, Queue Size: ${this.audioQueue.length}`);
+            this.log(`_processQueue called but skipping. Processing: ${this.processingQueue}, Queue Size: ${this.audioQueue.length}`);
             if (this.audioQueue.length === 0) { this.processingQueue = false; } // Ensure flag reset if queue empty
             return;
         }
         this.processingQueue = true;
-        this.debugLog(`_processQueue started. Queue size: ${this.audioQueue.length}`);
+        this.log(`_processQueue started. Queue size: ${this.audioQueue.length}`);
 
         // Ensure speaker exists and is ready, create if needed
         if (!this.persistentSpeaker || this.persistentSpeaker.destroyed) {
@@ -537,8 +529,8 @@ module.exports = NodeHelper.create({
                     this.log('Persistent Speaker Closed.');
                     this.persistentSpeaker = null; this.processingQueue = false;
                 });
-                this.persistentSpeaker.on('open', () => this.debugLog('Persistent Speaker opened.'));
-                this.persistentSpeaker.on('flush', () => this.debugLog('Persistent Speaker flushed.'));
+                this.persistentSpeaker.on('open', () => this.log('Persistent Speaker opened.'));
+                this.persistentSpeaker.on('flush', () => this.log('Persistent Speaker flushed.'));
                 // --- End Listeners ---
             } catch (e) {
                  this.error('Failed to create persistent speaker:', e);
@@ -567,7 +559,7 @@ module.exports = NodeHelper.create({
                 if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) { try { this.persistentSpeaker.destroy(); } catch (e) { this.error("Error destroying speaker on write error:", e); } }
                 this.persistentSpeaker = null; this.processingQueue = false;
             } else {
-                this.debugLog(`Finished writing chunk.`);
+                this.log(`Finished writing chunk.`);
                 this.processingQueue = false; // Mark this chunk done
                 this._processQueue(); // Call again immediately to process next item if any
             }

@@ -119,9 +119,6 @@ module.exports = NodeHelper.create({
 
             this.liveSession = await this.genAI.live.connect({
                 model: GEMINI_MODEL,
-                config: {
-                  systemInstruction: "You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.",
-                },
                 callbacks: {
                     onopen: () => {
                         this.log(">>> Live Connection Callback: onopen triggered!");
@@ -158,7 +155,12 @@ module.exports = NodeHelper.create({
                         else { this.log("Live Connection closed normally or was already closed."); }
                     },
                 },
-                config: { responseModalities: [Modality.AUDIO] },
+                // https://googleapis.github.io/js-genai/main/interfaces/types.LiveConnectConfig.html
+                config: { 
+                    responseModalities: [Modality.AUDIO],
+                    systemInstruction: "You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.",
+                    // tools: [] https://googleapis.github.io/js-genai/main/interfaces/types.Tool.html
+                },
             });
 
             this.log(`Step 4: live.connect call initiated, waiting for callback...`);

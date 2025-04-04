@@ -67,7 +67,6 @@ module.exports = NodeHelper.create({
         this.genAI = null
         this.apiKey = null
         this.debug = false
-        this.imageGenAI = null
     },
 
     async initialize(apiKey) {
@@ -92,15 +91,11 @@ module.exports = NodeHelper.create({
         this.log(`Initializing GoogleGenAI for ${API_VERSION}...`)
 
         try {
-            this.log("Step 1: Creating GoogleGenAI instances...")
+            this.log("Step 1: Creating GoogleGenAI instance...")
             
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
                 httpOptions: { 'apiVersion': 'v1alpha' } // v1alpha required at time of making this. Likely to change in the future
-            })
-
-            this.imageGenAI = new GoogleGenAI({
-                apiKey: this.apiKey,
             })
 
             this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`)
@@ -546,7 +541,7 @@ module.exports = NodeHelper.create({
                 switch(functionName) {
                 case "generate_image": // TODO think about moving this into its own function
                     this.log("****** Entering image generate ******")
-                    const response = this.imageGenAI.models.generateImages({
+                    const response = this.genAI.models.generateImages({
                         model: 'imagen-3.0-generate-002',
                         prompt: generateImagePrompt,
                         config: {
@@ -554,7 +549,7 @@ module.exports = NodeHelper.create({
                             includeRaiReason: true
                         },
                     })
-                    this.log(`Received image response from Gemini:`, JSON.stringify(response))
+                    this.log(`Received image response from Gemini:`, JSON.stringify(response, null, 2))
                     // TODO handle RaiReason
                 }
             }

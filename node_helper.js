@@ -1,4 +1,4 @@
-/* node_helper.js - Continuous Streaming Version with Persistent Speaker, Queue, and StartRecording Debugging */
+/* node_helper.js - Persistent Speaker, Queue, Waits for Turn Complete - Full Code */
 
 const NodeHelper = require("node_helper");
 const { GoogleGenAI, Modality } = require("@google/genai");
@@ -106,6 +106,7 @@ module.exports = NodeHelper.create({
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
                 vertexai: false,
+                systemInstruction: "You are a magical mirror assistant. Respond concisely and clearly to user audio requests. You can only respond with audio.",
                 httpOptions: { 'apiVersion': 'v1alpha' }
             });
             this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`);
@@ -134,7 +135,7 @@ module.exports = NodeHelper.create({
                     },
                     onerror: (e) => {
                         this.log(">>> Live Connection Callback: onerror triggered!");
-                        this.error(`Live Connection ERROR Received...`); // Simplified log
+                        this.error(`Live Connection ERROR Received at ${new Date().toISOString()}`);
                         this.error(`Live Connection ERROR Object:`, util.inspect(e, { depth: 5 }));
                         const errorMessage = e?.message || e?.toString() || 'Unknown Live Connection Error';
                         this.error(`Live Connection ERROR Message Extracted:`, errorMessage);
@@ -145,7 +146,7 @@ module.exports = NodeHelper.create({
                     },
                     onclose: (e) => {
                         this.log(">>> Live Connection Callback: onclose triggered!");
-                        this.warn(`Live Connection CLOSED Event Received...`); // Simplified log
+                        this.warn(`Live Connection CLOSED Event Received at ${new Date().toISOString()}.`);
                         this.warn(`Live Connection CLOSE Event Object:`, util.inspect(e, { depth: 5 }));
                         const wasOpen = this.connectionOpen;
                         this.connectionOpen = false; this.apiInitializing = false; this.apiInitialized = false;
@@ -155,15 +156,7 @@ module.exports = NodeHelper.create({
                         else { this.log("Live Connection closed normally or was already closed."); }
                     },
                 },
-                // https://googleapis.github.io/js-genai/main/interfaces/types.LiveConnectConfig.html
-                config: { 
-                    responseModalities: [Modality.AUDIO],
-                    // responseModalities: [Modality.TEXT],
-                    systemInstruction: {
-                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
-                    },
-                    // tools: [] https://googleapis.github.io/js-genai/main/interfaces/types.Tool.html
-                },
+                config: { responseModalities: [Modality.AUDIO] },
             });
 
             this.log(`Step 4: live.connect call initiated, waiting for callback...`);
@@ -229,7 +222,6 @@ module.exports = NodeHelper.create({
 
     // --- Audio Recording (Continuous) ---
     startRecording() {
-        // **** ADDED LOGGING ****
         this.log(">>> startRecording called.");
 
         if (this.isRecording) {
@@ -243,7 +235,6 @@ module.exports = NodeHelper.create({
         }
 
         this.isRecording = true;
-        // **** ADDED LOGGING ****
         this.log(">>> startRecording: Sending RECORDING_STARTED to frontend.");
         this.sendToFrontend("RECORDING_STARTED"); // Notify frontend recording has begun
 
@@ -257,16 +248,13 @@ module.exports = NodeHelper.create({
             debug: this.debug,
             threshold: 0, // Record continuously
         };
-        // **** ADDED LOGGING ****
         this.log(">>> startRecording: Recorder options:", recorderOptions);
         this.log(`>>> startRecording: Using input MIME Type: ${GEMINI_INPUT_MIME_TYPE}`);
 
         try {
-            // **** ADDED LOGGING ****
             this.log(">>> startRecording: Attempting recorder.record()...");
             this.recordingProcess = recorder.record(recorderOptions);
-             // **** ADDED LOGGING ****
-            this.log(">>> startRecording: recorder.record() call successful (process object created). Setting up streams...");
+             this.log(">>> startRecording: recorder.record() call successful (process object created). Setting up streams...");
 
             const audioStream = this.recordingProcess.stream();
             let chunkCounter = 0;
@@ -328,7 +316,6 @@ module.exports = NodeHelper.create({
             });
 
         } catch (recordError) {
-            // **** ADDED PREFIX TO LOGS ****
             this.error(">>> startRecording: Failed to start recording process in try/catch:", recordError);
             if (recordError.stack) {
                 this.error(">>> startRecording: Recording start error stack:", recordError.stack);
@@ -339,7 +326,8 @@ module.exports = NodeHelper.create({
         }
     }, // --- End startRecording ---
 
- stopRecording(force = false) {
+    // --- Stop Recording ---
+    stopRecording(force = false) {
         // Check if there is an active recording process instance
         if (!this.recordingProcess) {
              this.debugLog(`stopRecording called but no recording process instance exists.`);
@@ -382,6 +370,7 @@ module.exports = NodeHelper.create({
                       // Give it a moment to exit gracefully before forcing
                       setTimeout(() => {
                           // Check if the process reference still exists and if it wasn't killed yet
+                          // Need null check for this.recordingProcess in case timeout fires after stop() completes fully
                           if (this.recordingProcess && this.recordingProcess.process && !this.recordingProcess.process.killed) {
                               this.warn("Recording process did not exit after SIGTERM, sending SIGKILL.");
                               this.recordingProcess.process.kill('SIGKILL');
@@ -424,51 +413,84 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
-        // this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
-        
-        if(message?.setupComplete) { /* ... */ return; }
-        if( message?.serverContent?.turnComplete ) { /* ... */ return }
+        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
+        this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
 
-        // Check if audio
-        let extractedAudioData = null;
-        try { extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data; }
-        catch (e) { this.error("Error accessing audio data:", e); }
-        
-        if (extractedAudioData) {
-             this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
-             this.audioQueue.push(extractedAudioData);
-             this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
-             this._processQueue();
-             return
-        } else { this.warn(`No audio data found...`); }
-        
-        // Check if text response
-        let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
-        if( extractedTextData ) {
-            this.log(`Extracted text: ` + extractedTextData)
-            this.sendToFrontend("GEMINI_RESPONSE", { text: extractedTextData });
-            return
-        } else {
-            this.warn(`No text data found...`)
+        let responsePayload = { text: null, audio: null, feedback: null };
+
+        if (message?.setupComplete) {
+            this.log("Received setupComplete message from Gemini (ignoring for playback).");
+            return;
         }
 
-        if (!extractedAudioData && !extractedTextData) { this.warn(`Not sending GEMINI_RESPONSE notification...`) }
-    },
+        // --- Extract Audio Data ---
+        let extractedAudioData = null;
+        try {
+            extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+        } catch (e) {
+             this.error("Error trying to access audio data in serverContent structure:", e);
+        }
 
-// --- Process the Audio Playback Queue ---
+        // --- Handle Prompt Feedback ---
+        if (message?.response?.promptFeedback) {
+            this.warn(`Prompt feedback received:`, JSON.stringify(message.response.promptFeedback, null, 2));
+            responsePayload.feedback = message.response.promptFeedback;
+            if (message.response.promptFeedback.blockReason) {
+                this.error(`Response blocked by API. Reason: ${message.response.promptFeedback.blockReason}`);
+                responsePayload.text = `[Response blocked: ${message.response.promptFeedback.blockReason}]`;
+                // Prevent queuing audio if the response was blocked
+                extractedAudioData = null;
+            }
+        }
+
+        // --- Queue Audio Data if Found (and not blocked) ---
+        if (extractedAudioData) {
+            this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
+            responsePayload.audio = extractedAudioData; // Keep for frontend notification
+            // *** ADD TO QUEUE ***
+            this.audioQueue.push(extractedAudioData);
+            this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
+            // *** DO NOT trigger _processQueue immediately anymore ***
+        } else {
+             // Log if no audio data was found (and not due to blocking)
+             if (!responsePayload.feedback?.blockReason) {
+                this.warn(`Received Gemini message but found no 'audio' data in the expected location.`);
+                this.debugLog("Full message for no-audio case:", util.inspect(message, {depth: 5}));
+             }
+        }
+
+        // --- Check for Turn Complete signal to START playback ---
+        // Playback starts ONLY when turn is complete AND queue has items
+        if (message?.serverContent?.turnComplete) {
+            this.log("Turn complete signal received.");
+            if (this.audioQueue.length > 0) {
+                 this.log(`Triggering queue processing. Queue size: ${this.audioQueue.length}`);
+                 // *** START QUEUE PROCESSING HERE ***
+                 this._processQueue(); // Start playing the queued audio for this completed turn
+            } else {
+                this.debugLog("Turn complete, but audio queue is empty (perhaps audio was blocked or not sent).");
+                 // Ensure processing flag is false if queue is empty on turn complete
+                 this.processingQueue = false;
+            }
+        }
+
+         // --- Send extracted info (if any) to Frontend ---
+         // Notification is sent as chunks arrive, even if playback waits for turnComplete
+        if (responsePayload.audio || responsePayload.text || responsePayload.feedback) {
+             this.sendToFrontend("GEMINI_RESPONSE", responsePayload);
+        } else {
+            this.warn(`Not sending GEMINI_RESPONSE notification as no actionable content was extracted.`);
+        }
+    }, // --- End handleGeminiResponse ---
+
+    // --- Process the Audio Playback Queue ---
     _processQueue() {
         // Prevent re-entry if already processing or queue is empty
         if (this.processingQueue || this.audioQueue.length === 0) {
             this.debugLog(`_processQueue called but skipping. Processing: ${this.processingQueue}, Queue Size: ${this.audioQueue.length}`);
-            // If the queue is empty, ensure the flag is false
-            if (this.audioQueue.length === 0) {
-                 this.processingQueue = false;
-            }
+            if (this.audioQueue.length === 0) { this.processingQueue = false; } // Ensure flag reset if queue empty
             return;
         }
-
-        // Mark queue as being processed for this chunk
         this.processingQueue = true;
         this.debugLog(`_processQueue started. Queue size: ${this.audioQueue.length}`);
 
@@ -537,7 +559,7 @@ module.exports = NodeHelper.create({
         const buffer = Buffer.from(chunkBase64, 'base64');
         this.log(`Writing chunk (length ${buffer.length}) to speaker. Queue size remaining: ${this.audioQueue.length}`);
 
-        // Write the buffer. The 'finish' callback tells us when this *specific* buffer
+        // Write the buffer. The callback tells us when this *specific* buffer
         // has been flushed from Node's perspective, not necessarily when fully played by hardware.
         this.persistentSpeaker.write(buffer, (err) => {
             if (err) {
@@ -550,15 +572,19 @@ module.exports = NodeHelper.create({
                 this.processingQueue = false; // Allow recreation on next call
                 // Consider re-queueing the failed chunk? For now, we drop it and let next cycle try.
             } else {
-                this.debugLog(`Finished writing chunk. Queue size: ${this.audioQueue.length}`);
+                this.debugLog(`Finished writing chunk.`);
                 // Buffer write accepted, allow next chunk processing immediately
-                 this.processingQueue = false; // Mark this chunk's processing as done
+                 this.processingQueue = false; // Mark this chunk done
                  this._processQueue(); // Call again to process next item if any
             }
         });
     }, // --- End _processQueue ---
 
-// --- Stop Helper ---
+
+    // --- playAudio Function (REMOVED) ---
+
+
+    // --- Stop Helper ---
      stop: function() {
         this.log(`Stopping node_helper...`);
 
@@ -583,9 +609,6 @@ module.exports = NodeHelper.create({
                      this.persistentSpeaker.destroy(); // Force destroy if end not available
                      this.log("Called persistentSpeaker.destroy()");
                 }
-                // Give a brief moment for underlying resources potentially
-                // This is heuristic, might not be necessary
-                // await new Promise(resolve => setTimeout(resolve, 50));
             } catch (e) {
                 this.error("Error closing persistent speaker:", e);
             } finally {

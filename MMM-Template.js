@@ -26,7 +26,6 @@ Module.register("MMM-Template", {
   currentStatusText: "",
   lastResponseText: "", // Stores text representation or indicator for audio
   helperReady: false,
-  turnComplete = true
 
   // --- Lifecycle Functions ---
   start() {
@@ -160,16 +159,14 @@ Module.register("MMM-Template", {
         }
         break
       case "GEMINI_TEXT_RESPONSE":
-        Log.info(`${this.name} received text: ${payload.text}`);
-        if( turnComplete ) {
-          turnComplete = false
-          this.lastResponseText = payload.text
-        } else {
-          this.lastResponseText = lastResponseText + payload.text
+        if (payload && payload.text) {
+            // If we get here right now, it should always have payload.text. Leaving if-statement for expanding on this code later
+            if (payload.text) {
+                this.lastResponseText = payload.text
+                Log.info(`${this.name} received text: ${payload.text}`);
+            }
         }
         break;
-      case "GEMINI_TURN_COMPLETE": 
-        turnComplete = true
       case "HELPER_ERROR":
         this.currentState = "ERROR";
         this.currentStatusText = `Error: ${payload.error || 'Unknown helper error'}`

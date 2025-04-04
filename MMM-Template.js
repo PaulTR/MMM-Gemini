@@ -16,8 +16,6 @@ Module.register("MMM-Template", {
     recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="r" dur="1.2s" values="35;40;35" repeatCount="indefinite" /></circle></svg>`,
      // Red X on dark grey
     errorIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#333" /><line x1="30" y1="30" x2="70" y2="70" stroke="red" stroke-width="10" /><line x1="70" y1="30" x2="30" y2="70" stroke="red" stroke-width="10" /></svg>`,
-
-    lastResponsePrefix: "Mirror says: ",
   },
 
   // --- Module State ---
@@ -102,7 +100,7 @@ Module.register("MMM-Template", {
     
     // Show response only if not initializing/erroring and there is text
     if ((this.currentState === "RECORDING") && this.lastResponseText) {
-       responseSpan.innerHTML = `${this.config.lastResponsePrefix}${this.lastResponseText}`
+       responseSpan.innerHTML = `${this.lastResponseText}`
     } else {
        responseSpan.innerHTML = ""
     }
@@ -165,9 +163,9 @@ Module.register("MMM-Template", {
           this.turnComplete = false
           this.lastResponseText = payload.text
         } else {
-          this.lastResponseText = lastResponseText + payload.text
+          this.lastResponseText = this.lastResponseText + payload.text
         }
-        break;
+        break
       case "GEMINI_TURN_COMPLETE": 
         this.turnComplete = true
         break

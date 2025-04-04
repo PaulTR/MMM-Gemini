@@ -635,6 +635,6 @@ module.exports = NodeHelper.create({
                 this.persistentSpeaker = null
                 return
             }
-        },
-    }
+        }
+    },
 })

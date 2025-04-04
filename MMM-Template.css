@@ -1,53 +1,32 @@
-/* Main container for the module */
 .mmm-template-gemini {
-  display: flex; /* Use flexbox for layout */
-  justify-content: center; /* Center items horizontally */
-  align-items: center; /* Center items vertically */
+  display: flex;
+  flex-direction: column; /* Stack items vertically */
+  justify-content: center; /* Center vertically if module has extra height */
+  align-items: center; /* Center items horizontally */
   width: 100%; /* Take full width of its region */
-  position: relative; /* Needed for absolute positioning of children if used */
   padding: 10px; /* Add some padding around the module */
   box-sizing: border-box;
-}
-
-/* Container for the status indicator (SVG) */
-.mmm-template-gemini .status-indicator {
-  /* Position the indicator relative to the center */
-  /* We assume the parent (.mmm-template-gemini) is centered by MagicMirror */
-  /* Using absolute position to offset from the true center */
-  position: absolute;
-  left: 50%; /* Start at the horizontal center of the parent */
-
-  /* Explanation of transform:
-     1. translateX(-50%): Centers the *indicator itself* horizontally at the 50% mark.
-     2. Then, shift it left by 25px PLUS half its own width (assuming 50px width)
-        to make its *center* 25px left of the parent's center.
-        Alternatively, shift it left by 25px relative to its centered position.
-        Let's try shifting relative to center:
-  */
-  transform: translateX(calc(-50% - 25px)); /* Center indicator, then shift 25px left */
-
-  /* If absolute positioning causes issues with text overlap, */
-  /* alternative: use flex order and margin */
-  /* order: 1; */ /* Make indicator appear first visually */
-  /* margin-right: 15px; */ /* Add space between indicator and text */
-  /* The absolute positioning is closer to the "-25px from middle" request */
-
-  width: 50px; /* Explicit width, matches SVG */
-  height: 50px; /* Explicit height, matches SVG */
-  flex-shrink: 0; /* Prevent indicator from shrinking */
+  gap: 10px; /* Add space between the text container and the indicator */
 }
 
 /* Container for all text elements */
 .mmm-template-gemini .text-container {
+  order: 1; /* Display text block FIRST visually */
   display: flex;
   flex-direction: column; /* Stack status and response vertically */
   align-items: center; /* Center text lines horizontally */
-  /* Add margin to prevent text from overlapping the absolutely positioned indicator */
-  /* Adjust this margin based on indicator size and desired spacing */
-  margin-left: 60px; /* Approx indicator width (50px) + some space (10px) */
-  /* If not using absolute positioning for indicator, this margin might not be needed */
-  /* or could be replaced by 'gap' on the main flex container */
   text-align: center; /* Ensure text inside is centered */
+  width: 100%; /* Allow text container to take available width */
+}
+
+/* Container for the status indicator (SVG) */
+.mmm-template-gemini .status-indicator {
+  order: 2; /* Display indicator SECOND visually (below text) */
+  /* Removed absolute positioning properties */
+  /* SVG size is defined in its attributes */
+  flex-shrink: 0; /* Prevent indicator from shrinking */
+  /* The indicator will now be horizontally centered because of */
+  /* align-items: center on the parent flex container */
 }
 
 /* Styling for the current status text (e.g., "Listening...") */
@@ -63,11 +42,9 @@
   font-size: 5em; /* Larger response text */
   color: #FFF; /* White text */
   line-height: 1.1; /* Adjust line height */
-  margin-top: 10px; /* Space above response (redundant with text-container gap?) */
+  margin-top: 10px; /* Space above response */
   padding: 5px;
-  /* Optional: Keep the border or remove if not desired */
-  /* border-left: 2px solid #444; */
-  max-width: 80%; /* Prevent very long responses from breaking layout badly */
+  max-width: 90%; /* Prevent very long responses from breaking layout badly */
   word-wrap: break-word; /* Wrap long words */
 }
 

@@ -173,7 +173,7 @@ module.exports = NodeHelper.create({
 
                 config: {
                     // responseModalities: [Modality.AUDIO],
-                    responseModalities: [Modality.TEXT, Modality.IMAGE],
+                    responseModalities: [Modality.TEXT],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
@@ -183,7 +183,25 @@ module.exports = NodeHelper.create({
                             dynamicRetrievalConfig: {
                                 mode: DynamicRetrievalConfigMode.MODE_DYNAMIC,
                             }
-                    } }] // Keep your commented preference
+                        },
+                        functionDeclarations: [
+                            {
+                                name: "",
+                                description: "",
+                                parameters: {
+                                    type: Type.OBJECT,
+                                    description: "This object will contain a generated prompt for generating a new image through the Gemini API",
+                                    properties: {
+                                        image_prompt: {
+                                            type: Type.STRING,
+                                            description: "A prompt that should be used with image generation to create an image requested by the user using Gemini. Be as detailed as necessary. Style should be like an detailed realistic fantasy painting."
+                                        },
+                                    },
+                                },
+                                requierd: ['image_prompt'],
+                            },
+                        ]
+                    }] // Keep your commented preference
                 },
             })
 
@@ -479,7 +497,7 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
+        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
 
         if (message?.setupComplete) {
             this.log("Received setupComplete message from Gemini (ignoring for playback).")

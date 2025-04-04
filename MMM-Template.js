@@ -158,7 +158,7 @@ Module.register("MMM-Template", {
             Log.info(`${this.name}: Recording stopped as part of shutdown.`)
         }
         break
-      case "GEMINI_TEXT_RESPONSE":
+      case "GEMINI_RESPONSE":
         // Stay in RECORDING state, just update the text
         if (this.currentState !== "RECORDING") {
              Log.warn(`${this.name}: Received Gemini response while not in RECORDING state (${this.currentState}). Updating text anyway.`)

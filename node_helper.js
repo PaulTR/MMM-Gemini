@@ -493,7 +493,7 @@ module.exports = NodeHelper.create({
         let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
         if( extractedTextData ) {
             this.log(`Extracted text: ` + extractedTextData)
-            this.sendToFrontend("GEMINI_TEXT_RESPONSE", { text: extractedTextData });
+            this.sendToFrontend("GEMINI_RESPONSE", { text: extractedTextData });
             return
         } else {
             this.warn(`No text data found...`)
@@ -517,7 +517,7 @@ module.exports = NodeHelper.create({
                  this.processingQueue = false;
             }
 
-            this.sendToFrontend("GEMINI_TURN_COMPLETE", {})
+            // TODO notify UI that turn is complete so text can be cleared on next text received
 
             return
         }

@@ -208,7 +208,6 @@ Module.register("MMM-Gemini", {
       // --- ADDED CASE ---
       case "GEMINI_IMAGE_GENERATING":
         Log.info(`${this.name}: Starting image generation.`);
-        this.currentState = "GENERATING_IMAGE"; // Optional: Add a specific state
         this.isGeneratingImage = true;
         this.lastImageData = null; // Clear previous image
         this.currentStatusText = "Generating image..."; // Set status text

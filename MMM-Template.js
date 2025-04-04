@@ -1,28 +1,24 @@
-/* global Module, Log, Buffer */ // Added Buffer for potential browser audio playback later
+/* global Module, Log, Buffer */
 
 Module.register("MMM-Template", {
   defaults: {
     // Display content
     statusText: "Initializing...",
     apiKey: "", // MUST be set in config.js
-    
+
     // Visual feedback
     showIndicators: true,
-    
-    // Simplified indicators
-    // Spinning ring
-    initializingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="grey" /><circle cx="50" cy="50" r="30" fill="white" /><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite"/></svg>`,    
-    // Pulsing red circle
+
+    // Simplified indicators (SVGs remain the same)
+    initializingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="grey" /><circle cx="50" cy="50" r="30" fill="white" /><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite"/></svg>`,
     recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="r" dur="1.2s" values="35;40;35" repeatCount="indefinite" /></circle></svg>`,
-     // Red X on dark grey
     errorIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#333" /><line x1="30" y1="30" x2="70" y2="70" stroke="red" stroke-width="10" /><line x1="70" y1="30" x2="30" y2="70" stroke="red" stroke-width="10" /></svg>`,
   },
 
   // --- Module State ---
-  // Simplified States: INITIALIZING, READY, RECORDING, ERROR, SHUTDOWN
   currentState: "INITIALIZING",
   currentStatusText: "",
-  lastResponseText: "", // Stores text representation or indicator for audio
+  lastResponseText: "",
   helperReady: false,
   turnComplete: true,
 
@@ -42,93 +38,90 @@ Module.register("MMM-Template", {
       return
     }
 
-    // Send API key to helper immediately, it will initialize asynchronously
     this.sendSocketNotification("START_CONNECTION", {
             apiKey: this.config.apiKey,
         })
-
-    // Update DOM to show "Initializing..."
     this.updateDom()
   },
 
   getDom() {
     const wrapper = document.createElement("div")
-    wrapper.className = "mmm-template-gemini"
+    wrapper.className = "mmm-template-gemini" // Main container class
 
-    let indicator = ""
+    // --- Create Text Container ---
+    const textDiv = document.createElement("div")
+    textDiv.className = "text-container" // Class for the text block
+
+    // Current Status Text
+    const currentStatusSpan = document.createElement("div")
+    currentStatusSpan.className = "current-status"
+    currentStatusSpan.innerHTML = this.currentStatusText || "&nbsp;" // Use non-breaking space if empty to maintain height
+    textDiv.appendChild(currentStatusSpan)
+
+    // Response Text (conditionally displayed)
+    const responseSpan = document.createElement("div")
+    responseSpan.className = "response"
+    // Show response only if not initializing/erroring and there is text
+    // Or maybe always show the container but hide content? Let's stick to conditional content for now.
+    if ((this.currentState === "RECORDING" || this.currentState === "READY") && this.lastResponseText) {
+       responseSpan.innerHTML = `${this.lastResponseText}`
+       responseSpan.style.display = '' // Ensure it's visible
+    } else {
+       responseSpan.innerHTML = "&nbsp;" // Use non-breaking space if empty
+       responseSpan.style.display = 'none' // Hide if no text relevant
+    }
+    textDiv.appendChild(responseSpan)
+
+    // --- Create Indicator ---
+    let indicatorSvg = ""
     if (this.config.showIndicators) {
       switch (this.currentState) {
         case "INITIALIZING":
-        case "READY": // Show initializing briefly while telling helper to start
-            indicator = this.config.initializingIndicatorSvg
+        case "READY":
+            indicatorSvg = this.config.initializingIndicatorSvg
             break
         case "RECORDING":
-          indicator = this.config.recordingIndicatorSvg
+          indicatorSvg = this.config.recordingIndicatorSvg
           break
         case "ERROR":
-            indicator = this.config.errorIndicatorSvg
+            indicatorSvg = this.config.errorIndicatorSvg
             break
-        // TODO decide if I even want to keep this
-        case "SHUTDOWN": // Optional: show nothing or idle indicator
-             indicator = "" // Or this.config.idleIndicatorSvg if defined
+        case "SHUTDOWN":
+             indicatorSvg = "" // No indicator
              break
-        default: // Should not happen often - 'often' needed because lol
-          indicator = this.config.errorIndicatorSvg
+        default:
+          indicatorSvg = this.config.errorIndicatorSvg // Default to error
           break
       }
     }
 
-    // Move all of this into CSS file
     const statusDiv = document.createElement("div")
-    statusDiv.className = "status-indicator" // Added MM classes
-    statusDiv.style.verticalAlign = "middle" // Align indicator vertically
-    // responseSpan.style.marginLeft = "-25px"
-    statusDiv.innerHTML = indicator
-
-    const textDiv = document.createElement("div")
-    textDiv.className = "status-label"
-    // textDiv.style.marginLeft = "10px" // Space between indicator and text
-    // textDiv.style.verticalAlign = "middle" // Align text vertically
-
-    const currentStatusSpan = document.createElement("div")
-    currentStatusSpan.className = "current-status"
-    currentStatusSpan.innerHTML = this.currentStatusText
-
-    const responseSpan = document.createElement("div")
-    // responseSpan.className = "response-text small dimmed" // Added MM classes
-    responseSpan.className = "response" // Added MM classes
-    // responseSpan.style.marginTop = "5px" // Space above response text
-    
-    // Show response only if not initializing/erroring and there is text
-    if ((this.currentState === "RECORDING") && this.lastResponseText) {
-       responseSpan.innerHTML = `${this.lastResponseText}`
+    statusDiv.className = "status-indicator"
+    if (indicatorSvg) {
+        statusDiv.innerHTML = indicatorSvg
     } else {
-       responseSpan.innerHTML = ""
+        // If no SVG, ensure the div doesn't take up space or affect layout
+        statusDiv.style.display = 'none'
     }
 
-
-    textDiv.appendChild(currentStatusSpan)
-    textDiv.appendChild(responseSpan)
-
+    // --- Assemble Wrapper ---
+    // Structure: Indicator first, then Text. CSS will handle layout.
+    wrapper.appendChild(statusDiv)
     wrapper.appendChild(textDiv)
 
-    // wrapper.appendChild(document.createElement("br"))
-    // wrapper.appendChild(document.createElement("br"))
-
-    // Append indicator only if it's not empty
-    if (indicator) {
-       wrapper.appendChild(statusDiv)
-    }
 
     return wrapper
   },
 
+
   getStyles: function() {
-      return ["MMM-Template.css"] // Optional
+      return ["MMM-Template.css"]
   },
 
-  // This is the function used for receiving messages back from node_helper.js
   socketNotificationReceived: function (notification, payload) {
+    // Reset display text if needed when state changes
+    let shouldClearResponse = false
+
     switch (notification) {
       case "HELPER_READY":
         if (!this.helperReady) {
@@ -136,10 +129,9 @@ Module.register("MMM-Template", {
             this.helperReady = true
             this.currentState = "READY"
             this.currentStatusText = "Starting microphone..."
-            this.lastResponseText = ""
-            this.updateDom()
-            
-            // *** Tell helper to start recording ***
+            shouldClearResponse = true
+            this.updateDom() // Update before sending notification
+
             this.sendSocketNotification("START_CONTINUOUS_RECORDING")
         } else {
              Log.warn(`${this.name}: Received duplicate HELPER_READY notification. Ignored.`)
@@ -149,40 +141,51 @@ Module.register("MMM-Template", {
         Log.info(`${this.name}: Continuous recording confirmed by helper.`)
         this.currentState = "RECORDING"
         this.currentStatusText = "Listening..."
+        shouldClearResponse = true // Clear previous response when listening starts
         break
       case "RECORDING_STOPPED":
-        // This usually means an error occurred, unless we are stopping the module
         if (this.currentState !== "SHUTDOWN") {
             Log.warn(`${this.name}: Recording stopped unexpectedly.`)
-            this.currentState = "ERROR" // Assume error if stopped unexpectedly
+            this.currentState = "ERROR"
             this.currentStatusText = "Mic stopped. Check logs."
-            this.helperReady = false // Assume connection needs reset
+            this.helperReady = false
+            shouldClearResponse = true
         } else {
             Log.info(`${this.name}: Recording stopped as part of shutdown.`)
         }
         break
       case "GEMINI_TEXT_RESPONSE":
+        this.currentStatusText = "Listening..." // Keep it less chatty
         if( this.turnComplete ) {
-          this.lastResponseText = payload.text
+          this.lastResponseText = payload.text // Start new response
           this.turnComplete = false
         } else {
-          this.lastResponseText = `${this.lastResponseText}${payload.text}`
+          this.lastResponseText = `${this.lastResponseText}${payload.text}` // Append chunk
         }
-        
         Log.info(`${this.name} received text: ${payload.text}`)
         break
       case "GEMINI_TURN_COMPLETE":
         this.turnComplete = true
+        this.currentStatusText = "Listening..." // Go back to listening status
         break
       case "HELPER_ERROR":
         this.currentState = "ERROR"
         this.currentStatusText = `Error: ${payload.error || 'Unknown helper error'}`
         Log.error(`${this.name} received error from helper: ${payload.error}`)
-        this.helperReady = false // Assume connection needs reset
-        this.lastResponseText = "" // Clear response on error
+        this.helperReady = false
+        shouldClearResponse = true
         break
+      default:
+          // Unhandled notification
+          Log.warn(`${this.name} received unhandled notification: ${notification}`)
+          break // Added default case
     }
 
-    this.updateDom()
+    // Clear response text if needed (e.g., on state change, error)
+    if (shouldClearResponse) {
+        this.lastResponseText = ""
+    }
+
+    this.updateDom() // Update DOM after processing notification
   },
 })

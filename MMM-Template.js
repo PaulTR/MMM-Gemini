@@ -158,14 +158,14 @@ Module.register("MMM-Template", {
         }
         break
       case "GEMINI_TEXT_RESPONSE":
-        Log.info(`${this.name} received text: ${payload.text}`);
-        if( this.turnComplete ) {
-          this.turnComplete = false
-          this.lastResponseText = payload.text
-        } else {
-          this.lastResponseText = this.lastResponseText + payload.text
-        }
-        break
+        // Log.info(`${this.name} received text: ${payload.text}`);
+        // if( this.turnComplete ) {
+        //   this.turnComplete = false
+        //   this.lastResponseText = payload.text
+        // } else {
+        //   this.lastResponseText = this.lastResponseText + payload.text
+        // }
+        // break
       case "GEMINI_TURN_COMPLETE": 
         this.turnComplete = true
         break

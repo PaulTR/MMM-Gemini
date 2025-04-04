@@ -489,8 +489,18 @@ module.exports = NodeHelper.create({
              this.log(`Received Gemini message but found no 'audio' data in the expected location.`)
         }
 
+        // Check if text response
+        let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
+        if( extractedTextData ) {
+            this.log(`Extracted text: ` + extractedTextData)
+            this.sendToFrontend("GEMINI_TEXT_RESPONSE", { text: extractedTextData });
+            return
+        } else {
+            this.warn(`No text data found...`)
+        }
+
         /*
-            Playback starts ONLY when turn is complete AND queue has items
+            Audio playback starts ONLY when turn is complete AND queue has items
             There's some decisions you could make here - you can play all of the chunks as they come in,
             but then you have some pauses/hiccups during the initial playback chunks
             With this queue method, playback is smooth, but also delayed while it waits for the turnComplete message to come through
@@ -506,6 +516,9 @@ module.exports = NodeHelper.create({
                  // Ensure processing flag is false if queue is empty on turn complete
                  this.processingQueue = false;
             }
+
+            this.sendToFrontend("GEMINI_TURN_COMPLETE", {})
+
             return
         }
 

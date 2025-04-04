@@ -501,7 +501,7 @@ module.exports = NodeHelper.create({
 
 
     // --- Gemini Response Handling ---
-    handleGeminiResponse(message) {
+    async handleGeminiResponse(message) {
         // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
 
         if (message?.setupComplete) {
@@ -547,7 +547,7 @@ module.exports = NodeHelper.create({
                 case "generate_image": // TODO think about moving this into its own function
                     this.log("****** Entering image generate ******")
                     this.log(`****** prompt ****** : ${generateImagePrompt}`)
-                    await response = this.imaGenAI.models.generateImages({
+                    const response = await this.imaGenAI.models.generateImages({
                         model: 'imagen-3.0-generate-002',
                         prompt: generateImagePrompt,
                         config: {

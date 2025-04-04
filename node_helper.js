@@ -157,7 +157,8 @@ module.exports = NodeHelper.create({
                 },
                 // https://googleapis.github.io/js-genai/main/interfaces/types.LiveConnectConfig.html
                 config: { 
-                    responseModalities: [Modality.AUDIO],
+                    // responseModalities: [Modality.AUDIO],
+                    responseModalities: [Modality.TEXT],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
@@ -351,23 +352,34 @@ module.exports = NodeHelper.create({
     handleGeminiResponse(message) {
         // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
         // this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
-        let responsePayload = { text: null, audio: null, feedback: null };
-        if (message?.setupComplete) { /* ... */ return; }
+        
+        if(message?.setupComplete) { /* ... */ return; }
+        if( message?.serverContent?.turnComplete ) { /* ... */ return }
+
+        // Check if audio
         let extractedAudioData = null;
         try { extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data; }
         catch (e) { this.error("Error accessing audio data:", e); }
-        if (message?.response?.promptFeedback) { /* Handle feedback */ }
+        
         if (extractedAudioData) {
-             if (!responsePayload.feedback?.blockReason) { // Check if not blocked
-                 this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
-                 responsePayload.audio = extractedAudioData;
-                 this.audioQueue.push(extractedAudioData);
-                 this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
-                 this._processQueue();
-             } else { this.log("Audio data present but response was blocked."); }
-        } else { if (!responsePayload.feedback?.blockReason) { this.warn(`No audio data found...`); } }
-        if (responsePayload.audio || responsePayload.text || responsePayload.feedback) { this.sendToFrontend("GEMINI_RESPONSE", responsePayload); }
-        else { this.warn(`Not sending GEMINI_RESPONSE notification...`); }
+             this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
+             this.audioQueue.push(extractedAudioData);
+             this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
+             this._processQueue();
+             return
+        } else { this.warn(`No audio data found...`); }
+        
+        // Check if text response
+        let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
+        if( extractedTextData ) {
+            this.log(`Extracted text: ` + extractedTextData)
+            this.sendToFrontend("GEMINI_RESPONSE", { text: extractedTextData });
+            return
+        } else {
+            this.warn(`No text data found...`)
+        }
+
+        if (!extractedAudioData && !extractedTextData) { this.warn(`Not sending GEMINI_RESPONSE notification...`) }
     },
 
     // --- Process the Audio Playback Queue ---
@@ -403,8 +415,6 @@ module.exports = NodeHelper.create({
             }
         });
     },
-
-    // --- playAudio Function (REMOVED) ---
 
     // --- Stop Helper ---
      stop: function() {

@@ -1,7 +1,7 @@
 /* node_helper.js - Persistent Speaker, Queue, Waits for Turn Complete - CORRECTED Config */
 
 const NodeHelper = require("node_helper")
-const { GoogleGenAI, Modality } = require("@google/genai")
+const { GoogleGenAI, Modality, DynamicRetrievalConfigMode, Type, PersonGeneration } = require("@google/genai")
 const recorder = require('node-record-lpcm16')
 const { Buffer } = require('buffer')
 const util = require('util')
@@ -65,6 +65,7 @@ module.exports = NodeHelper.create({
         this.apiInitializing = false
         this.liveSession = null
         this.genAI = null
+        this.imaGenAI = null
         this.apiKey = null
         this.debug = false
     },
@@ -91,11 +92,15 @@ module.exports = NodeHelper.create({
         this.log(`Initializing GoogleGenAI for ${API_VERSION}...`)
 
         try {
-            this.log("Step 1: Creating GoogleGenAI instance...")
+            this.log("Step 1: Creating GoogleGenAI instances...")
             
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
                 httpOptions: { 'apiVersion': 'v1alpha' } // v1alpha required at time of making this. Likely to change in the future
+            })
+
+            this.imaGenAI = new GoogleGenAI({
+                apiKey: this.apiKey,
             })
 
             this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`)
@@ -162,8 +167,8 @@ module.exports = NodeHelper.create({
                             this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly.` })
                             // *** This might cause a loop if things go poorly, but the goal is that when the live connection automatically times out, we can just reopen.
                             // Not ideal if you're looking to constantly have your mirror running, you may want to add some logic to detect a volume threshold, then initialize everything
-                            // but for a demo, this is good enough
-                            initialize(apiKey)
+                            // but for a demo, this is good enough ***
+                            this.initialize(apiKey)
                         }
                         else { 
                             this.log("Live Connection closed normally or was already closed.")
@@ -172,12 +177,36 @@ module.exports = NodeHelper.create({
                 },
 
                 config: {
-                    // responseModalities: [Modality.AUDIO],
-                    responseModalities: [Modality.TEXT],
+                    responseModalities: [Modality.AUDIO],
+                    // responseModalities: [Modality.TEXT],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
-                    // tools: [] // Keep your commented preference
+                    tools: [{
+                        googleSearch: {}, 
+                        googleSearchRetrieval: {
+                            dynamicRetrievalConfig: {
+                                mode: DynamicRetrievalConfigMode.MODE_DYNAMIC,
+                            }
+                        },
+                        functionDeclarations: [
+                            {
+                                name: "generate_image",
+                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror",
+                                parameters: {
+                                    type: Type.OBJECT,
+                                    description: "This object will contain a generated prompt for generating a new image through the Gemini API",
+                                    properties: {
+                                        image_prompt: {
+                                            type: Type.STRING,
+                                            description: "A prompt that should be used with image generation to create an image requested by the user using Gemini. Be as detailed as necessary."
+                                        },
+                                    },
+                                },
+                                requierd: ['image_prompt'],
+                            },
+                        ]
+                    }] // Keep your commented preference
                 },
             })
 
@@ -472,7 +501,7 @@ module.exports = NodeHelper.create({
 
 
     // --- Gemini Response Handling ---
-    handleGeminiResponse(message) {
+    async handleGeminiResponse(message) {
         // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
 
         if (message?.setupComplete) {
@@ -497,7 +526,7 @@ module.exports = NodeHelper.create({
              this.error("Error trying to access audio data in serverContent structure:", e)
         }
 
-        // Queue Audio Data if found (and not blocked)
+        // Queue Audio Data if found
         if (extractedAudioData) {
             this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`)
             this.audioQueue.push(extractedAudioData)
@@ -505,6 +534,37 @@ module.exports = NodeHelper.create({
             return
         } else {
              this.log(`Received Gemini message but found no 'audio' data in the expected location.`)
+        }
+
+        let functioncall = message?.toolCall?.functionCalls?.[0]
+
+        if(functioncall) {
+            // Only checking for image generation as a function call
+            let functionName = functioncall.name
+            let generateImagePrompt = functioncall.args?.image_prompt
+            if(functionName && generateImagePrompt) {
+                switch(functionName) {
+                case "generate_image": // TODO think about moving this into its own function
+                    this.log("****** Entering image generate ******")
+                    this.log(`****** prompt ****** : ${generateImagePrompt}`)
+                    this.sendToFrontend("GEMINI_IMAGE_GENERATING")
+                    const response = await this.imaGenAI.models.generateImages({
+                        model: 'imagen-3.0-generate-002',
+                        prompt: generateImagePrompt,
+                        config: {
+                            numberOfImages: 1,
+                            includeRaiReason: true,
+                            // personGeneration: PersonGeneration.ALLOW_ADULT,
+                        },
+                    })
+
+                    // TODO handle RaiReason if it exists
+                    let imageBytes = response?.generatedImages?.[0]?.image?.imageBytes
+                    if( imageBytes ) {
+                        this.sendToFrontend("GEMINI_IMAGE_GENERATED", { image: imageBytes })
+                    }
+                }
+            }
         }
 
         /*

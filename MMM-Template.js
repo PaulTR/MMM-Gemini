@@ -113,6 +113,9 @@ Module.register("MMM-Template", {
 
     wrapper.appendChild(textDiv)
 
+    wrapper.appendChild(document.createElement("br"))
+    wrapper.appendChild(document.createElement("br"))
+    
     // Append indicator only if it's not empty
     if (indicator) {
        wrapper.appendChild(statusDiv)

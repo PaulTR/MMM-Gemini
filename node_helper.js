@@ -353,7 +353,8 @@ module.exports = NodeHelper.create({
         this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
         this.debugLog(`Full Gemini Message Content:`, util.inspect(message, {depth: 5}));
         
-        if (message?.setupComplete) { /* ... */ return; }
+        if(message?.setupComplete) { /* ... */ return; }
+        if( message?.serverContent?.turnComplete ) { /* ... */ return }
 
         // Check if audio
         let extractedAudioData = null;
@@ -370,11 +371,11 @@ module.exports = NodeHelper.create({
         // Check if text response
         let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
         if( extractedTextData ) {
+            this.log(`Extracted text: ` + extractedTextData)
             this.sendToFrontend("GEMINI_RESPONSE", extractedTextData);
         } else {
             this.warn(`No text data found...`)
         }
-
 
         if (!extractedAudioData && !extractedTextData) { this.warn(`Not sending GEMINI_RESPONSE notification...`) }
     },

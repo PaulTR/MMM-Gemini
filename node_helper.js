@@ -362,21 +362,17 @@ module.exports = NodeHelper.create({
         catch (e) { this.error("Error accessing audio data:", e); }
         
         if (extractedAudioData) {
-             if (!responsePayload.feedback?.blockReason) { // Check if not blocked
-                 this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
-                 responsePayload.audio = extractedAudioData;
-                 this.audioQueue.push(extractedAudioData);
-                 this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
-                 this._processQueue();
-             } else { this.log("Audio data present but response was blocked."); }
+             this.log(`Extracted valid audio data (length: ${extractedAudioData.length}). Adding to queue.`);
+             responsePayload.audio = extractedAudioData;
+             this.audioQueue.push(extractedAudioData);
+             this.log(`Audio added to queue. Queue size: ${this.audioQueue.length}`);
+             this._processQueue();
         } else { if (!responsePayload.feedback?.blockReason) { this.warn(`No audio data found...`); } }
         
         // Check if text response
         let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
         if( extractedTextData ) {
-            if (!responsePayload.feedback?.blockReason) { // Check if not blocked
-                 responsePayload.text = text;
-             } else { this.log("Audio data present but response was blocked."); }
+            responsePayload.text = extractedTextData;
         }
 
 

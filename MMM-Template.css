@@ -1,14 +1,3 @@
-/* MMM-Template.css */
-
-.mmm-template-gemini .status {
-  margin-bottom: 5px; /* Space below main status */
-}
-
-.mmm-template-gemini .detailed-status {
-  margin-bottom: 10px; /* Space below detailed status */
-  font-style: italic;
-}
-
 .mmm-template-gemini .response {
   margin-top: 10px; /* Space above response */
   padding: 5px;
@@ -18,28 +7,17 @@
 }
 
 .mmm-template-gemini .status-indicator {
+
+}
+
+.mmm-template-gemini .current-status {
+
+}
+
+.mmm-template-gemini .response {
+
+}
+
+.mmm-template-gemini .status-label {
     
-}
-
-/* You can add more specific styling for bright, dimmed, small, medium, light etc.
-   if your MagicMirror theme doesn't define them adequately */
-
-.mmm-template-gemini .bright {
-    /* Example: color: #eee; */
-}
-
-.mmm-template-gemini .dimmed {
-    /* Example: color: #aaa; */
-}
-
-.mmm-template-gemini .small {
-    /* Example: font-size: 0.8em; */
-}
-
-.mmm-template-gemini .medium {
-    /* Example: font-size: 1em; */
-}
-
-.mmm-template-gemini .light {
-   /* Example: color: #ccc; */
 }

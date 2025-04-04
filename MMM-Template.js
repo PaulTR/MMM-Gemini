@@ -53,7 +53,7 @@ Module.register("MMM-Template", {
 
   getDom() {
     const wrapper = document.createElement("div")
-    wrapper.className = "mmm-template-gemini normal medium"
+    wrapper.className = "mmm-template-gemini"
 
     let indicator = ""
     if (this.config.showIndicators) {
@@ -80,25 +80,23 @@ Module.register("MMM-Template", {
 
     // Move all of this into CSS file
     const statusDiv = document.createElement("div")
-    statusDiv.className = "status-indicator bright" // Added MM classes
-    statusDiv.style.display = "inline-block" // Keep indicator inline
-    statusDiv.style.verticalAlign = "middle" // Align indicator vertically
+    statusDiv.className = "status-indicator" // Added MM classes
+    // statusDiv.style.verticalAlign = "middle" // Align indicator vertically
     statusDiv.innerHTML = indicator
 
     const textDiv = document.createElement("div")
-    textDiv.className = "status-text"
-    textDiv.style.marginLeft = "10px" // Space between indicator and text
-    textDiv.style.display = "inline-block" // Keep text next to indicator
-    textDiv.style.verticalAlign = "middle" // Align text vertically
+    textDiv.className = "status-label"
+    // textDiv.style.marginLeft = "10px" // Space between indicator and text
+    // textDiv.style.verticalAlign = "middle" // Align text vertically
 
     const currentStatusSpan = document.createElement("div")
-    currentStatusSpan.className = "current-status bright"
+    currentStatusSpan.className = "current-status"
     currentStatusSpan.innerHTML = this.currentStatusText
 
     const responseSpan = document.createElement("div")
     // responseSpan.className = "response-text small dimmed" // Added MM classes
-    responseSpan.className = "response-text" // Added MM classes
-    responseSpan.style.marginTop = "5px" // Space above response text
+    responseSpan.className = "response" // Added MM classes
+    // responseSpan.style.marginTop = "5px" // Space above response text
     
     // Show response only if not initializing/erroring and there is text
     if ((this.currentState === "RECORDING") && this.lastResponseText) {
@@ -113,9 +111,9 @@ Module.register("MMM-Template", {
 
     wrapper.appendChild(textDiv)
 
-    wrapper.appendChild(document.createElement("br"))
-    wrapper.appendChild(document.createElement("br"))
-    
+    // wrapper.appendChild(document.createElement("br"))
+    // wrapper.appendChild(document.createElement("br"))
+
     // Append indicator only if it's not empty
     if (indicator) {
        wrapper.appendChild(statusDiv)

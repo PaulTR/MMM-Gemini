@@ -69,7 +69,7 @@ module.exports = NodeHelper.create({
         this.debug = false
     },
 
-    _initializePersistentSpeaker() {
+    initializePersistentSpeaker: function() {
         if (!this.persistentSpeaker || this.persistentSpeaker.destroyed) {
             this.log("Creating new persistent speaker instance.")
             try {
@@ -518,7 +518,7 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
+        // this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
 
         if (message?.setupComplete) {
             this.log("Received setupComplete message from Gemini (ignoring for playback).")

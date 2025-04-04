@@ -70,8 +70,21 @@
 .mmm-gemini .generated-image {
   display: block;
   max-width: 90%;
-  max-height: 300px;
+  max-height: 768px;
   height: auto;
   margin-left: auto;
   margin-right: auto;
+}
+
+.mmm-gemini .image-loader {
+  width: 40px;
+  height: 40px;
+  background-color: #ccc;
+  margin: 20px auto;
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

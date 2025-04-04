@@ -106,7 +106,6 @@ module.exports = NodeHelper.create({
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
                 vertexai: false,
-                systemInstruction: "You are a magical mirror assistant. Respond concisely and clearly to user audio requests. You can only respond with audio.",
                 httpOptions: { 'apiVersion': 'v1alpha' }
             });
             this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`);
@@ -120,6 +119,7 @@ module.exports = NodeHelper.create({
 
             this.liveSession = await this.genAI.live.connect({
                 model: GEMINI_MODEL,
+                systemInstruction: "You are a magical mirror assistant. Respond concisely and clearly to user audio requests. You can only respond with audio.",
                 callbacks: {
                     onopen: () => {
                         this.log(">>> Live Connection Callback: onopen triggered!");

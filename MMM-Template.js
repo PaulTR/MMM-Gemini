@@ -16,6 +16,8 @@ Module.register("MMM-Template", {
     recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="r" dur="1.2s" values="35;40;35" repeatCount="indefinite" /></circle></svg>`,
      // Red X on dark grey
     errorIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#333" /><line x1="30" y1="30" x2="70" y2="70" stroke="red" stroke-width="10" /><line x1="70" y1="30" x2="30" y2="70" stroke="red" stroke-width="10" /></svg>`,
+
+    lastResponsePrefix: "Mirror says: ",
   },
 
   // --- Module State ---
@@ -24,7 +26,6 @@ Module.register("MMM-Template", {
   currentStatusText: "",
   lastResponseText: "", // Stores text representation or indicator for audio
   helperReady: false,
-  turnComplete = true
 
   // --- Lifecycle Functions ---
   start() {
@@ -100,7 +101,7 @@ Module.register("MMM-Template", {
     
     // Show response only if not initializing/erroring and there is text
     if ((this.currentState === "RECORDING") && this.lastResponseText) {
-       responseSpan.innerHTML = `${this.lastResponseText}`
+       responseSpan.innerHTML = `${this.config.lastResponsePrefix}${this.lastResponseText}`
     } else {
        responseSpan.innerHTML = ""
     }
@@ -158,17 +159,18 @@ Module.register("MMM-Template", {
         }
         break
       case "GEMINI_TEXT_RESPONSE":
-        // Log.info(`${this.name} received text: ${payload.text}`);
-        // if( this.turnComplete ) {
-        //   this.turnComplete = false
-        //   this.lastResponseText = payload.text
-        // } else {
-        //   this.lastResponseText = this.lastResponseText + payload.text
-        // }
-        // break
-      case "GEMINI_TURN_COMPLETE": 
-        this.turnComplete = true
-        break
+        // Stay in RECORDING state, just update the text
+        if (this.currentState !== "RECORDING") {
+             Log.warn(`${this.name}: Received Gemini response while not in RECORDING state (${this.currentState}). Updating text anyway.`)
+        }
+        if (payload && payload.text) {
+            // If we get here right now, it should always have payload.text. Leaving if-statement for expanding on this code later
+            if (payload.text) {
+                this.lastResponseText = payload.text
+                Log.info(`${this.name} received text: ${payload.text}`);
+            }
+        }
+        break;
       case "HELPER_ERROR":
         this.currentState = "ERROR";
         this.currentStatusText = `Error: ${payload.error || 'Unknown helper error'}`

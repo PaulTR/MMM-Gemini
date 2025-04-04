@@ -372,7 +372,7 @@ module.exports = NodeHelper.create({
         let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
         if( extractedTextData ) {
             this.log(`Extracted text: ` + extractedTextData)
-            this.sendToFrontend("GEMINI_RESPONSE", extractedTextData);
+            this.sendToFrontend("GEMINI_RESPONSE", { text: extractedTextData });
         } else {
             this.warn(`No text data found...`)
         }

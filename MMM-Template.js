@@ -16,8 +16,6 @@ Module.register("MMM-Template", {
     recordingIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="red"><animate attributeName="r" dur="1.2s" values="35;40;35" repeatCount="indefinite" /></circle></svg>`,
      // Red X on dark grey
     errorIndicatorSvg: `<svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#333" /><line x1="30" y1="30" x2="70" y2="70" stroke="red" stroke-width="10" /><line x1="70" y1="30" x2="30" y2="70" stroke="red" stroke-width="10" /></svg>`,
-
-    lastResponsePrefix: "Mirror says: ",
   },
 
   // --- Module State ---
@@ -26,6 +24,7 @@ Module.register("MMM-Template", {
   currentStatusText: "",
   lastResponseText: "", // Stores text representation or indicator for audio
   helperReady: false,
+  turnComplete: true,
 
   // --- Lifecycle Functions ---
   start() {
@@ -38,7 +37,7 @@ Module.register("MMM-Template", {
     if (!this.config.apiKey) {
       Log.error(`${this.name}: apiKey not set in config! Module disabled.`)
       this.currentStatusText = "Error: API Key missing in config.js."
-      this.currentState = "ERROR";
+      this.currentState = "ERROR"
       this.updateDom()
       return
     }
@@ -79,6 +78,7 @@ Module.register("MMM-Template", {
       }
     }
 
+    // Move all of this into CSS file
     const statusDiv = document.createElement("div")
     statusDiv.className = "status-indicator bright" // Added MM classes
     statusDiv.style.display = "inline-block" // Keep indicator inline
@@ -96,12 +96,13 @@ Module.register("MMM-Template", {
     currentStatusSpan.innerHTML = this.currentStatusText
 
     const responseSpan = document.createElement("div")
-    responseSpan.className = "response-text small dimmed" // Added MM classes
+    // responseSpan.className = "response-text small dimmed" // Added MM classes
+    responseSpan.className = "response-text" // Added MM classes
     responseSpan.style.marginTop = "5px" // Space above response text
     
     // Show response only if not initializing/erroring and there is text
     if ((this.currentState === "RECORDING") && this.lastResponseText) {
-       responseSpan.innerHTML = `${this.config.lastResponsePrefix}${this.lastResponseText}`
+       responseSpan.innerHTML = `${this.lastResponseText}`
     } else {
        responseSpan.innerHTML = ""
     }
@@ -121,7 +122,7 @@ Module.register("MMM-Template", {
   },
 
   getStyles: function() {
-      return ["MMM-Template.css"]; // Optional
+      return ["MMM-Template.css"] // Optional
   },
 
   // This is the function used for receiving messages back from node_helper.js
@@ -137,7 +138,7 @@ Module.register("MMM-Template", {
             this.updateDom()
             
             // *** Tell helper to start recording ***
-            this.sendSocketNotification("START_CONTINUOUS_RECORDING");
+            this.sendSocketNotification("START_CONTINUOUS_RECORDING")
         } else {
              Log.warn(`${this.name}: Received duplicate HELPER_READY notification. Ignored.`)
         }
@@ -146,7 +147,7 @@ Module.register("MMM-Template", {
         Log.info(`${this.name}: Continuous recording confirmed by helper.`)
         this.currentState = "RECORDING"
         this.currentStatusText = "Listening..."
-        break;
+        break
       case "RECORDING_STOPPED":
         // This usually means an error occurred, unless we are stopping the module
         if (this.currentState !== "SHUTDOWN") {
@@ -158,42 +159,42 @@ Module.register("MMM-Template", {
             Log.info(`${this.name}: Recording stopped as part of shutdown.`)
         }
         break
-      case "GEMINI_RESPONSE":
-        // Stay in RECORDING state, just update the text
-        if (this.currentState !== "RECORDING") {
-             Log.warn(`${this.name}: Received Gemini response while not in RECORDING state (${this.currentState}). Updating text anyway.`)
+      case "GEMINI_TEXT_RESPONSE":
+        if( this.turnComplete ) {
+          this.lastResponseText = payload.text
+          this.turnComplete = false
+        } else {
+          this.lastResponseText = `${this.lastResponseText}${payload.text}`
         }
-        if (payload && payload.text) {
-            // If we get here right now, it should always have payload.text. Leaving if-statement for expanding on this code later
-            if (payload.text) {
-                this.lastResponseText = payload.text
-                Log.info(`${this.name} received text: ${payload.text}`);
-            }
-        }
-        break;
+        
+        Log.info(`${this.name} received text: ${payload.text}`)
+        break
+      case "GEMINI_TURN_COMPLETE":
+        this.turnComplete = true
+        break
       case "HELPER_ERROR":
-        this.currentState = "ERROR";
+        this.currentState = "ERROR"
         this.currentStatusText = `Error: ${payload.error || 'Unknown helper error'}`
         Log.error(`${this.name} received error from helper: ${payload.error}`)
-                this.helperReady = false // Assume connection needs reset
-                this.lastResponseText = "" // Clear response on error
+        this.helperReady = false // Assume connection needs reset
+        this.lastResponseText = "" // Clear response on error
         break
     }
 
-    this.updateDom();
+    this.updateDom()
   },
 
   // Maybe not used anymore. Confirm.
   stop: function() {
-    Log.info(`Stopping module: ${this.name}`);
-    this.currentState = "SHUTDOWN";
-    this.currentStatusText = "Shutting down...";
-    this.helperReady = false;
-    this.updateDom(); // Show shutting down state
+    Log.info(`Stopping module: ${this.name}`)
+    this.currentState = "SHUTDOWN"
+    this.currentStatusText = "Shutting down..."
+    this.helperReady = false
+    this.updateDom() // Show shutting down state
 
         // Notify helper to clean up its resources (stop recording, close connection)
-        Log.info(`${this.name}: Sending STOP_CONNECTION notification.`);
-    this.sendSocketNotification("STOP_CONNECTION");
+        Log.info(`${this.name}: Sending STOP_CONNECTION notification.`)
+    this.sendSocketNotification("STOP_CONNECTION")
   }
 
-});
+})

@@ -19,8 +19,8 @@ const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
 
 // Target Model and API version
-const GEMINI_MODEL = 'gemini-2.0-flash-exp';
-const API_VERSION = 'v1alpha';
+const GEMINI_MODEL = 'gemini-2.0-flash-exp'
+const API_VERSION = 'v1alpha'
 
 module.exports = NodeHelper.create({
     // --- Helper State ---
@@ -132,9 +132,14 @@ module.exports = NodeHelper.create({
                         const errorMessage = e?.message || e?.toString() || 'Unknown Live Connection Error'
                         this.error(`Live Connection ERROR Message Extracted:`, errorMessage)
 
-                        this.connectionOpen = false; this.apiInitializing = false; this.apiInitialized = false
-                        this.liveSession = null; this.stopRecording(true)
-                        this.persistentSpeaker = null; this.processingQueue = false; this.audioQueue = []
+                        this.connectionOpen = false
+                        this.apiInitializing = false
+                        this.apiInitialized = false
+                        this.liveSession = null
+                        this.stopRecording(true)
+                        this.persistentSpeaker = null
+                        this.processingQueue = false
+                        this.audioQueue = []
 
                         this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${errorMessage}` })
                     },
@@ -144,9 +149,14 @@ module.exports = NodeHelper.create({
                         this.warn(`Live Connection CLOSE Event Object:`, util.inspect(e, { depth: 5 }))
 
                         const wasOpen = this.connectionOpen
-                        this.connectionOpen = false; this.apiInitializing = false; this.apiInitialized = false
-                        this.liveSession = null; this.stopRecording(true)
-                        this.persistentSpeaker = null; this.processingQueue = false; this.audioQueue = []
+                        this.connectionOpen = false
+                        this.apiInitializing = false
+                        this.apiInitialized = false
+                        this.liveSession = null
+                        this.stopRecording(true)
+                        this.persistentSpeaker = null
+                        this.processingQueue = false
+                        this.audioQueue = []
 
                         if (wasOpen) { 
                             this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly.` })
@@ -170,7 +180,7 @@ module.exports = NodeHelper.create({
             this.log(`Step 4: live.connect call initiated, waiting for callback...`)
 
         } catch (error) {
-            this.error(`Failed during API Initialization try block:`, error);
+            this.error(`Failed during API Initialization try block:`, error)
            
             if (error.stack) {
                 this.error(`Initialization error stack:`, error.stack)
@@ -208,12 +218,12 @@ module.exports = NodeHelper.create({
                 this.log(`>>> socketNotificationReceived: About to call initializeLiveGenAPI...`)
 
                 try {
-                     this.initializeLiveGenAPI(payload.apiKey);
+                     this.initializeLiveGenAPI(payload.apiKey)
                      this.log(`>>> socketNotificationReceived: Called initializeLiveGenAPI.`)
                 } catch (error) {
                     this.error(">>> socketNotificationReceived: Error occurred synchronously when CALLING initializeLiveGenAPI:", error)
                 }
-                break;
+                break
 
             case "START_CONTINUOUS_RECORDING":
                 this.log(`>>> socketNotificationReceived: Handling START_CONTINUOUS_RECORDING.`)
@@ -224,19 +234,19 @@ module.exports = NodeHelper.create({
                          this.warn("Attempting to re-initialize API connection...")
                          this.initializeLiveGenAPI(this.apiKey)
                     }
-                    return;
+                    return
                 }
                 if (this.isRecording) {
                     this.warn(`Already recording. Ignoring START_CONTINUOUS_RECORDING request.`)
-                    return;
+                    return
                 }
                 this.startRecording()
-                break;
+                break
 
             case "STOP_CONNECTION":
                 this.log(`>>> socketNotificationReceived: Handling STOP_CONNECTION.`)
                 this.stop()
-                break;
+                break
         }
     },
 
@@ -275,7 +285,7 @@ module.exports = NodeHelper.create({
         try {
             this.log(">>> startRecording: Attempting recorder.record()...")
             this.recordingProcess = recorder.record(recorderOptions)
-             this.log(">>> startRecording: recorder.record() call successful (process object created). Setting up streams...");
+             this.log(">>> startRecording: recorder.record() call successful (process object created). Setting up streams...")
 
             const audioStream = this.recordingProcess.stream()
             let chunkCounter = 0
@@ -305,7 +315,7 @@ module.exports = NodeHelper.create({
                     const payloadToSend = { media: { mimeType: GEMINI_INPUT_MIME_TYPE, data: base64Chunk } }
                     // this.log(`[${sendTime}] Attempting sendRealtimeInput for chunk #${++chunkCounter}...`)
 
-                    await this.liveSession.sendRealtimeInput(payloadToSend);
+                    await this.liveSession.sendRealtimeInput(payloadToSend)
 
                     // this.log(`[${new Date().toISOString()}] sendRealtimeInput succeeded.`)
                 } catch (apiError) {
@@ -406,7 +416,7 @@ module.exports = NodeHelper.create({
                     stream.removeAllListeners('data')
                     stream.removeAllListeners('error')
                     stream.removeAllListeners('end')
-                    stream.unpipe(); // Important for stream cleanup
+                    stream.unpipe() // Important for stream cleanup
                 }
 
                  if (this.recordingProcess.process) {
@@ -456,7 +466,7 @@ module.exports = NodeHelper.create({
              // Defensive cleanup if process still exists somehow (shouldn't happen with proper state management)
             if (this.recordingProcess) {
                  this.warn("stopRecording called while isRecording=false, but process existed. Forcing cleanup.")
-                 this.stopRecording(true); // Force stop to clean up the zombie process
+                 this.stopRecording(true) // Force stop to clean up the zombie process
             }
         }
     }, // --- End stopRecording ---
@@ -464,15 +474,24 @@ module.exports = NodeHelper.create({
 
     // --- Gemini Response Handling ---
     handleGeminiResponse(message) {
-        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2));
+        this.log(`Received message structure from Gemini:`, JSON.stringify(message, null, 2))
 
         if (message?.setupComplete) {
             this.log("Received setupComplete message from Gemini (ignoring for playback).")
             return
         }
 
+        let extractedTextData = message?.serverContent?.modelTurn?.parts?.[0]?.text
+        if( extractedTextData ) {
+            this.log(`Extracted text: ` + extractedTextData)
+            this.sendToFrontend("GEMINI_TEXT_RESPONSE", { text: extractedTextData })
+            return
+        } else {
+            this.warn(`No text data found...`)
+        }
+
         // --- Extract Audio Data ---
-        let extractedAudioData = null;
+        let extractedAudioData = null
         try {
             extractedAudioData = message?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data
         } catch (e) {
@@ -502,10 +521,12 @@ module.exports = NodeHelper.create({
                  this.log(`Triggering queue processing. Queue size: ${this.audioQueue.length}`)
                  this._processQueue()
             } else {
-                this.log("Turn complete, but audio queue is empty (perhaps audio was blocked or not sent).")
+                this.log("Turn complete, but audio queue is empty (perhaps audio was blocked or not sent, such as using Modality.TEXT).")
                  // Ensure processing flag is false if queue is empty on turn complete
-                 this.processingQueue = false;
+                 this.processingQueue = false
             }
+
+            this.sendToFrontend("GEMINI_TURN_COMPLETE", { })
             return
         }
 
@@ -568,15 +589,17 @@ module.exports = NodeHelper.create({
                 this.persistentSpeaker.on('flush', () => this.log('Persistent Speaker flushed.'))
 
             } catch (e) {
-                 this.error('Failed to create persistent speaker:', e)
-                 this.processingQueue = false; this.persistentSpeaker = null
-                 return
+                this.error('Failed to create persistent speaker:', e)
+                this.processingQueue = false
+                this.persistentSpeaker = null
+                return
             }
         }
 
         if (!this.persistentSpeaker) {
-             this.error("Cannot process queue, speaker instance is not available.");
-             this.processingQueue = false; return
+             this.error("Cannot process queue, speaker instance is not available.")
+             this.processingQueue = false
+             return
         }
 
         // Process one chunk at a time using the write callback
@@ -610,7 +633,7 @@ module.exports = NodeHelper.create({
                 this.processingQueue = false // Mark this chunk done
                 this._processQueue() // Call again immediately to process next item if any
             }
-        });
+        })
     },
 
      stop: function() {
@@ -641,7 +664,7 @@ module.exports = NodeHelper.create({
             } catch (e) {
                 this.error("Error closing persistent speaker:", e)
             } finally {
-                this.persistentSpeaker = null; // Clear reference
+                this.persistentSpeaker = null // Clear reference
             }
         } else {
             this.log("No persistent speaker instance to close.")
@@ -678,6 +701,6 @@ module.exports = NodeHelper.create({
         this.apiKey = null
         // Note: Queue and speaker ref already cleared above
 
-        this.log(`Node_helper stopped.`);
+        this.log(`Node_helper stopped.`)
     }
-});
+})

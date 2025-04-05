@@ -14,13 +14,14 @@ const AUDIO_TYPE = 'raw' // Gemini Live API uses raw data streams
 const ENCODING = 'signed-integer'
 const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
+const CURRENT_MODALITY = Modality.AUDIO
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp' // Or 'gemini-1.5-pro-exp' etc.
 const API_VERSION = 'v1alpha'
 
 // --- Default Config ---
-const DEFAULT_PLAYBACK_THRESHOLD = 3 // Start playing after receiving this many chunks
+const DEFAULT_PLAYBACK_THRESHOLD = 6 // Start playing after receiving this many chunks
 
 module.exports = NodeHelper.create({
     // --- Helper State ---
@@ -30,7 +31,7 @@ module.exports = NodeHelper.create({
     recordingProcess: null,
     isRecording: false,
     audioQueue: [],
-    persistentSpeaker: null, // Use a speaker instance that persists while playing
+    persistentSpeaker: null, // Use a speaker instance that persists while playing, rather than creating for every chunk
     processingQueue: false, // Indicates if the playback loop (_processQueue) is active
     apiInitialized: false,
     connectionOpen: false,
@@ -151,7 +152,7 @@ module.exports = NodeHelper.create({
                 },
                 // Define connection configuration
                 config: {
-                    responseModalities: [Modality.AUDIO],
+                    responseModalities: [CURRENT_MODALITY],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
@@ -556,6 +557,12 @@ module.exports = NodeHelper.create({
         // --- Handle Function Calls ---
         if (functioncall) {
             await this.handleFunctionCall(functioncall)
+        }
+
+        if( message?.serverContent?.interrupted && this.CURRENT_MODALITY == Modality.AUDIO) {
+            this.log("Interrupted!!! " + JSON.stringify(message))
+            this.audioQueue = []; // Clear any queued audio chunks from the interrupted response
+            this.closePersistentSpeaker();
         }
 
         // --- Check for Turn Completion (LOGGING ONLY) ---

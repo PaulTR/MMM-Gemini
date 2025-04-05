@@ -287,7 +287,6 @@ module.exports = NodeHelper.create({
                     let currentChunkRMS = 0
                     let isCurrentChunkSpeech = false
 
-
                     try {
                         const numSamples = chunk.length / 2
                         if (numSamples > 0) {

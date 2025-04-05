@@ -559,7 +559,7 @@ module.exports = NodeHelper.create({
             await this.handleFunctionCall(functioncall)
         }
 
-        if( message?.serverContent?.interrupted && this.CURRENT_MODALITY == Modality.AUDIO) {
+        if( message?.serverContent?.interrupted && this.CURRENT_MODALITY === Modality.AUDIO) {
             this.log("Interrupted!!! " + JSON.stringify(message))
             this.audioQueue = [] // Clear any queued audio chunks from the interrupted response
             this.closePersistentSpeaker()

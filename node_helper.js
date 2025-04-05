@@ -134,7 +134,7 @@ module.exports = NodeHelper.create({
                         this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${e?.message || e}` })
                     },
                     onclose: (e) => {
-                        this.warn(`Live Connection CLOSED: ` + JSON.stringify(e))
+                        this.warn(`Live Connection CLOSED: ` + JSON.stringify())
                         const wasOpen = this.connectionOpen
                         this.connectionOpen = false
                         this.apiInitializing = false
@@ -559,11 +559,11 @@ module.exports = NodeHelper.create({
             await this.handleFunctionCall(functioncall)
         }
 
-        // if( message?.serverContent?.interrupted && this.CURRENT_MODALITY == Modality.AUDIO) {
-        //     this.log("Interrupted!!! " + JSON.stringify(message))
-        //     this.audioQueue = [] // Clear any queued audio chunks from the interrupted response
-        //     this.closePersistentSpeaker()
-        // }
+        if( message?.serverContent?.interrupted && this.CURRENT_MODALITY == Modality.AUDIO) {
+            this.log("Interrupted!!! " + JSON.stringify(message))
+            this.audioQueue = [] // Clear any queued audio chunks from the interrupted response
+            this.closePersistentSpeaker()
+        }
 
         // --- Check for Turn Completion (LOGGING ONLY) ---
         if (message?.serverContent?.turnComplete) {

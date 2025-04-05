@@ -152,7 +152,7 @@ module.exports = NodeHelper.create({
                 },
                 // Define connection configuration
                 config: {
-                    responseModalities: [CURRENT_MODALITY],
+                    responseModalities: [Modality.AUDIO],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
@@ -559,11 +559,11 @@ module.exports = NodeHelper.create({
             await this.handleFunctionCall(functioncall)
         }
 
-        if( message?.serverContent?.interrupted && this.CURRENT_MODALITY == Modality.AUDIO) {
-            this.log("Interrupted!!! " + JSON.stringify(message))
-            this.audioQueue = []; // Clear any queued audio chunks from the interrupted response
-            this.closePersistentSpeaker();
-        }
+        // if( message?.serverContent?.interrupted && this.CURRENT_MODALITY == Modality.AUDIO) {
+        //     this.log("Interrupted!!! " + JSON.stringify(message))
+        //     this.audioQueue = [] // Clear any queued audio chunks from the interrupted response
+        //     this.closePersistentSpeaker()
+        // }
 
         // --- Check for Turn Completion (LOGGING ONLY) ---
         if (message?.serverContent?.turnComplete) {

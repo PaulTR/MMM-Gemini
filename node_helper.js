@@ -331,37 +331,37 @@ module.exports = NodeHelper.create({
                 }
                 // --- End Interrupt Check ---
 
-                try {
-                    let payloadToSend;
-                    if (sendInterruptPayload) {
-                        // --- Construct Interrupt Payload ---
-                        // payloadToSend = {
-                        //     text: "you were interrupted, sorry! This is the last data chunk that was played", // Text as requested
-                        //     media: {
-                        //         mimeType: GEMINI_INTERRUPT_MIME_TYPE, // Use specific interrupt mime type
-                        //         data: base64Chunk // Send the interrupting chunk's data
-                        //     }
-                        // };
-                        this.log(`>>> Sending INTERRUPT payload (chunk #${chunkCounter})`)
-                    } else {
-                        // --- Construct Regular Payload ---
-                        payloadToSend = {
-                            media: {
-                                mimeType: GEMINI_INPUT_MIME_TYPE, // Use regular input mime type
-                                data: base64Chunk
-                            }
-                        };
-                        // Only log regular sends if debugging, otherwise it's too noisy
-                        if (this.debug) this.log(`>>> Sending regular audio payload (chunk #${chunkCounter})`)
-                    }
+                // try {
+                //     let payloadToSend;
+                //     if (sendInterruptPayload) {
+                //         // --- Construct Interrupt Payload ---
+                //         // payloadToSend = {
+                //         //     text: "you were interrupted, sorry! This is the last data chunk that was played", // Text as requested
+                //         //     media: {
+                //         //         mimeType: GEMINI_INTERRUPT_MIME_TYPE, // Use specific interrupt mime type
+                //         //         data: base64Chunk // Send the interrupting chunk's data
+                //         //     }
+                //         // };
+                //         this.log(`>>> Sending INTERRUPT payload (chunk #${chunkCounter})`)
+                //     } else {
+                //         // --- Construct Regular Payload ---
+                //         payloadToSend = {
+                //             media: {
+                //                 mimeType: GEMINI_INPUT_MIME_TYPE, // Use regular input mime type
+                //                 data: base64Chunk
+                //             }
+                //         };
+                //         // Only log regular sends if debugging, otherwise it's too noisy
+                //         if (this.debug) this.log(`>>> Sending regular audio payload (chunk #${chunkCounter})`)
+                //     }
 
-                    // Check liveSession again just before sending
-                    if (this.liveSession && this.connectionOpen) {
-                        await this.liveSession.sendRealtimeInput(payloadToSend)
-                    } else {
-                        this.warn(`Cannot send chunk #${chunkCounter} (interrupt=${sendInterruptPayload}), connection/session lost just before send`)
-                        this.stopRecording(true) // Stop recording if connection lost
-                    }
+                //     // Check liveSession again just before sending
+                //     if (this.liveSession && this.connectionOpen) {
+                //         await this.liveSession.sendRealtimeInput(payloadToSend)
+                //     } else {
+                //         this.warn(`Cannot send chunk #${chunkCounter} (interrupt=${sendInterruptPayload}), connection/session lost just before send`)
+                //         this.stopRecording(true) // Stop recording if connection lost
+                //     }
                 } catch (apiError) {
                     const errorTime = new Date().toISOString()
                     this.error(`[${errorTime}] Error sending audio chunk #${chunkCounter} (interrupt=${sendInterruptPayload}):`, apiError)

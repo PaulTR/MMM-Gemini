@@ -842,6 +842,14 @@ module.exports = NodeHelper.create({
             // Handle immediate backpressure: if write() returns false, pause and wait for 'drain'.
             if (!canWrite && this.processingQueue) {
                  this.log("_processQueue: Speaker backpressure detected (write returned false). Pausing writes until 'drain'.");
+
+                 // **** START FIX ****
+                 // Remove any previously attached 'drain' listeners from *this* logic to prevent buildup.
+                 // This is safe assuming no other part of your code adds 'drain' listeners you need to preserve.
+                 this.persistentSpeaker.removeAllListeners('drain');
+                 // **** END FIX ****
+
+                 // Add the listener to resume processing once the buffer drains.
                  this.persistentSpeaker.once('drain', () => {
                      this.log("_processQueue: Speaker 'drain' event received. Resuming processing.");
                      // Ensure still processing and speaker is valid before continuing

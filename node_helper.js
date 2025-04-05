@@ -326,7 +326,7 @@ module.exports = NodeHelper.create({
                         // --- MODIFICATION: Speaker is NO LONGER closed here ---
                         // this.closePersistentSpeaker(); // Stop speaker and reset playback flag // <-- REMOVED
 
-                        this.sendToFrontend("INTERRUPT_DETECTED"); // Notify frontend (optional)
+                        // this.sendToFrontend("INTERRUPT_DETECTED"); // Notify frontend (optional)
                     }
                 }
                 // --- End Interrupt Check ---
@@ -335,13 +335,13 @@ module.exports = NodeHelper.create({
                     let payloadToSend;
                     if (sendInterruptPayload) {
                         // --- Construct Interrupt Payload ---
-                        payloadToSend = {
-                            text: "you were interrupted, sorry! This is the last data chunk that was played", // Text as requested
-                            media: {
-                                mimeType: GEMINI_INTERRUPT_MIME_TYPE, // Use specific interrupt mime type
-                                data: base64Chunk // Send the interrupting chunk's data
-                            }
-                        };
+                        // payloadToSend = {
+                        //     text: "you were interrupted, sorry! This is the last data chunk that was played", // Text as requested
+                        //     media: {
+                        //         mimeType: GEMINI_INTERRUPT_MIME_TYPE, // Use specific interrupt mime type
+                        //         data: base64Chunk // Send the interrupting chunk's data
+                        //     }
+                        // };
                         this.log(`>>> Sending INTERRUPT payload (chunk #${chunkCounter})`)
                     } else {
                         // --- Construct Regular Payload ---

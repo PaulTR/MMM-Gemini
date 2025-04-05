@@ -14,7 +14,6 @@ const AUDIO_TYPE = 'raw' // Gemini Live API uses raw data streams
 const ENCODING = 'signed-integer'
 const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
-const CURRENT_MODALITY = Modality.AUDIO
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp' // Or 'gemini-1.5-pro-exp' etc.
@@ -559,10 +558,13 @@ module.exports = NodeHelper.create({
             await this.handleFunctionCall(functioncall)
         }
 
-        if( message?.serverContent?.interrupted && this.CURRENT_MODALITY === Modality.AUDIO) {
+        // Only really needed for audio modality
+        if( message?.serverContent?.interrupted) {
             this.log("Interrupted!!! " + JSON.stringify(message))
             this.audioQueue = [] // Clear any queued audio chunks from the interrupted response
-            this.closePersistentSpeaker()
+            if( this.persistentSpeaker ) {
+                this.closePersistentSpeaker()
+            }
         }
 
         // --- Check for Turn Completion (LOGGING ONLY) ---

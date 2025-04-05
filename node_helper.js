@@ -362,23 +362,23 @@ module.exports = NodeHelper.create({
                 //         this.warn(`Cannot send chunk #${chunkCounter} (interrupt=${sendInterruptPayload}), connection/session lost just before send`)
                 //         this.stopRecording(true) // Stop recording if connection lost
                 //     }
-                } catch (apiError) {
-                    const errorTime = new Date().toISOString()
-                    this.error(`[${errorTime}] Error sending audio chunk #${chunkCounter} (interrupt=${sendInterruptPayload}):`, apiError)
+                // } catch (apiError) {
+                //     const errorTime = new Date().toISOString()
+                //     this.error(`[${errorTime}] Error sending audio chunk #${chunkCounter} (interrupt=${sendInterruptPayload}):`, apiError)
 
-                    if (apiError.stack) {
-                        this.error(`Gemini send error stack:`, apiError.stack)
-                    }
+                //     if (apiError.stack) {
+                //         this.error(`Gemini send error stack:`, apiError.stack)
+                //     }
 
-                     // Check specific error types if possible, otherwise assume connection issue
-                    if (apiError.message?.includes('closed') || apiError.message?.includes('CLOSING') || apiError.code === 1000 || apiError.message?.includes('INVALID_STATE')) {
-                         this.warn("API error suggests connection closed/closing or invalid state")
-                         this.connectionOpen = false // Update state
-                    }
+                //      // Check specific error types if possible, otherwise assume connection issue
+                //     if (apiError.message?.includes('closed') || apiError.message?.includes('CLOSING') || apiError.code === 1000 || apiError.message?.includes('INVALID_STATE')) {
+                //          this.warn("API error suggests connection closed/closing or invalid state")
+                //          this.connectionOpen = false // Update state
+                //     }
 
-                    this.sendToFrontend("HELPER_ERROR", { error: `API send error: ${apiError.message}` })
-                    this.stopRecording(true) // Force stop on API error
-                }
+                //     this.sendToFrontend("HELPER_ERROR", { error: `API send error: ${apiError.message}` })
+                //     this.stopRecording(true) // Force stop on API error
+                // }
             })
 
             audioStream.on('error', (err) => {

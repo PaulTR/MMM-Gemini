@@ -21,9 +21,9 @@ const GEMINI_MODEL = 'gemini-2.0-flash-exp' // Or 'gemini-1.5-pro-exp' etc.
 const API_VERSION = 'v1alpha'
 
 // --- Default Config ---
-const DEFAULT_PLAYBACK_THRESHOLD = 3 // Start playing after receiving this many chunks
+const DEFAULT_PLAYBACK_THRESHOLD = 10 // Start playing after receiving this many chunks
 // --- Interrupt Timeout ---
-const INTERRUPT_TIMEOUT_MS = 2000 // 2 seconds
+const INTERRUPT_TIMEOUT_MS = 4000 // 4 seconds
 
 module.exports = NodeHelper.create({
     // --- Helper State ---

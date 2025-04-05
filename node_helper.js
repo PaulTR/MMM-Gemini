@@ -279,45 +279,45 @@ module.exports = NodeHelper.create({
                     return;
                 }
 
-                // Voice activity detection doing root square means volume checking - not sold on this
-                const base64Chunk = chunk.toString('base64')
-                chunkCounter++
-                const now = Date.now()
-                let currentChunkRMS = 0
-                let isCurrentChunkSpeech = false
+                if( interruptEnabled ) {
+                    // Voice activity detection doing root square means volume checking - not sold on this
+                    const base64Chunk = chunk.toString('base64')
+                    chunkCounter++
+                    const now = Date.now()
+                    let currentChunkRMS = 0
+                    let isCurrentChunkSpeech = false
 
 
-                try {
-                    const numSamples = chunk.length / 2
-                    if (numSamples > 0) {
-                        let sumOfSquares = 0
-                        for (let i = 0; i < chunk.length; i += 2) {
-                            if (i + 1 < chunk.length) {
-                                const sampleValue = chunk.readInt16LE(i)
-                                sumOfSquares += sampleValue * sampleValue
-                            } else {
-                                this.warn(`Odd byte length in chunk #${chunkCounter}`)
+                    try {
+                        const numSamples = chunk.length / 2
+                        if (numSamples > 0) {
+                            let sumOfSquares = 0
+                            for (let i = 0; i < chunk.length; i += 2) {
+                                if (i + 1 < chunk.length) {
+                                    const sampleValue = chunk.readInt16LE(i)
+                                    sumOfSquares += sampleValue * sampleValue
+                                } else {
+                                    this.warn(`Odd byte length in chunk #${chunkCounter}`)
+                                }
+                            }
+                            const meanSquare = sumOfSquares / numSamples
+                            currentChunkRMS = Math.sqrt(meanSquare)
+                            if (currentChunkRMS > SPEECH_RMS_THRESHOLD) {
+                                this.lastSpeechTimestamp = now
+                                isCurrentChunkSpeech = true
                             }
                         }
-                        const meanSquare = sumOfSquares / numSamples
-                        currentChunkRMS = Math.sqrt(meanSquare)
-                        if (currentChunkRMS > SPEECH_RMS_THRESHOLD) {
-                            this.lastSpeechTimestamp = now
-                            isCurrentChunkSpeech = true
-                        }
-                    }
-                 } catch (rmsError) {
-                     this.error(`Error calculating RMS for chunk #${chunkCounter}:`, rmsError)
-                 }
-                const recentSpeechDetected = (now - this.lastSpeechTimestamp) < SPEECH_DECAY_TIME_MS
+                     } catch (rmsError) {
+                         this.error(`Error calculating RMS for chunk #${chunkCounter}:`, rmsError)
+                     }
+                    const recentSpeechDetected = (now - this.lastSpeechTimestamp) < SPEECH_DECAY_TIME_MS
 
-                // --- Interrupt Check ---
-                if (this.interruptEnabled && this.audioQueue.length > 0 && recentSpeechDetected) {
-                    this.log(`>>> INTERRUPT DETECTED! Recent Speech Detected. Clearing output audio queue.`)
-                    this.audioQueue = []
-                    this.sendToFrontend("INTERRUPT_DETECTED")
+                    if (this.audioQueue.length > 0 && recentSpeechDetected) {
+                        this.log(`>>> INTERRUPT DETECTED! Recent Speech Detected. Clearing output audio queue.`)
+                        this.audioQueue = []
+                        this.sendToFrontend("INTERRUPT_DETECTED")
+                    }
                 }
-                // --- End Interrupt Check ---
 
                 // --- Sending Logic ---
                 try {

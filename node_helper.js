@@ -323,8 +323,8 @@ module.exports = NodeHelper.create({
                         this.log(">>> Clearing output audio queue due to interrupt.")
                         this.audioQueue = []; // Empty the queue
 
-                        this.log(">>> Stopping current playback due to interrupt.")
-                        this.closePersistentSpeaker(); // Stop speaker and reset playback flag
+                        // --- MODIFICATION: Speaker is NO LONGER closed here ---
+                        // this.closePersistentSpeaker(); // Stop speaker and reset playback flag // <-- REMOVED
 
                         this.sendToFrontend("INTERRUPT_DETECTED"); // Notify frontend (optional)
                     }
@@ -602,9 +602,17 @@ module.exports = NodeHelper.create({
             // --- End Modification ---
 
             // --- Trigger Playback if Threshold Reached and Not Already Playing ---
+            // Check if we are *not* already processing the queue AND if the queue now meets/exceeds the threshold
             if (!this.processingQueue && this.audioQueue.length >= this.config.playbackThreshold) {
                 this.log(`Audio queue reached threshold (${this.audioQueue.length} >= ${this.config.playbackThreshold}). Starting playback`)
                 this._processQueue() // Start the playback loop
+            } else if (this.processingQueue) {
+                 // If already processing, adding to the queue is enough, the loop will pick it up.
+                 // Log this condition if debugging.
+                 if (this.debug) this.log(`Audio chunk added to queue while already processing. Queue length: ${this.audioQueue.length}`)
+            } else {
+                // If not processing and threshold not met, just log if debugging.
+                if (this.debug) this.log(`Audio chunk added, queue length ${this.audioQueue.length} below threshold ${this.config.playbackThreshold}. Waiting.`)
             }
         }
 
@@ -628,6 +636,7 @@ module.exports = NodeHelper.create({
              this.log("Clearing queue and stopping playback due to blocked response.")
              this.audioQueue = [] // Clear queue
              if (this.processingQueue) {
+                 // A blocked response means we should definitely stop any ongoing playback.
                  this.closePersistentSpeaker() // Close speaker cleanly
              }
              // --- End Clear Queue ---
@@ -638,13 +647,26 @@ module.exports = NodeHelper.create({
     _processQueue() {
         // 1. Check Stop Condition (Queue Empty)
         if (this.audioQueue.length === 0) {
-            this.log("_processQueue: Queue is empty. Playback loop ending")
-            // Speaker should be closed by the last write callback's .end()
-            // Safeguard: ensure flag is false and close speaker if it exists.
-            this.processingQueue = false
-            if (this.persistentSpeaker) {
-                this.warn("_processQueue found empty queue but speaker exists! Forcing close")
-                this.closePersistentSpeaker()
+            this.log("_processQueue: Queue is empty. Checking speaker state.")
+            // If the queue becomes empty, we should *signal* the speaker to end after
+            // the current write completes, but don't necessarily close it immediately here.
+            // The write callback handles ending the speaker when the queue is empty *after* a write.
+            // If we enter _processQueue and the queue is *already* empty, it means
+            // either it was cleared (e.g., by interrupt) or the previous cycle finished.
+            if (this.persistentSpeaker && !this.persistentSpeaker.destroyed && this.processingQueue) {
+                 this.log("_processQueue: Queue empty on entry, likely finished or interrupted. Ensuring speaker ends.")
+                 // If the speaker exists and we thought we were processing,
+                 // call end() to ensure graceful shutdown after any pending write.
+                 // The 'end' callback or 'close' event handler should set processingQueue = false.
+                 this.persistentSpeaker.end(() => {
+                     this.log("Speaker .end() called from _processQueue entry check.")
+                     // It's safer for the 'close' handler or 'end' callback in the write function
+                     // to set processingQueue = false. Avoid setting it here directly.
+                 });
+            } else {
+                // Speaker doesn't exist or we weren't processing anyway. Ensure flag is false.
+                this.processingQueue = false
+                this.log("_processQueue: Queue empty, speaker null/destroyed or processing flag false. Loop stopping.")
             }
             return // Stop the loop
         }
@@ -669,32 +691,28 @@ module.exports = NodeHelper.create({
                 // Use 'on' because the speaker persists across multiple chunks
                 this.persistentSpeaker.on('error', (err) => {
                     this.error('Persistent Speaker Error:', err)
-                    this.closePersistentSpeaker() // Use helper to close and reset state
-                })
+                    // Ensure the speaker reference that caused the error is the current one before closing
+                    if (this.persistentSpeaker === speakerWithError) {
+                         this.closePersistentSpeaker() // Use helper to close and reset state
+                    } else {
+                         this.warn('Received error for an old/replaced speaker instance. Ignoring.')
+                    }
+                }.bind(null, this.persistentSpeaker)) // Bind the current speaker instance to the error handler
 
                 this.persistentSpeaker.on('close', () => {
+                     const speakerThatClosed = this.persistentSpeaker; // Capture ref *at time of event*
                     this.log('Persistent Speaker Closed Event')
-                    // Ensure state is clean if closed unexpectedly or after end()
-                    // Only set speaker to null if it's the current one being closed
-                    // This listener might fire after a new speaker is potentially created in an error scenario.
-                    // However, closePersistentSpeaker already sets this.persistentSpeaker = null.
-                    // This listener mainly confirms the closure and resets the flag if needed.
-                    if (this.processingQueue) {
-                         this.log('Speaker closed unexpectedly during processing. Resetting flag.')
-                         this.processingQueue = false
-                         // If queue still has items, we might want to restart, but errors
-                         // usually mean we should stop. closePersistentSpeaker handles the state reset.
+                    // Only reset state if the speaker that closed is the one we currently reference
+                    // (prevents race conditions if a new speaker was created quickly after an error/interrupt)
+                    if (this.persistentSpeaker === speakerThatClosed) {
+                         this.persistentSpeaker = null // Clear the reference
+                         if (this.processingQueue) {
+                              this.log('Speaker closed. Resetting processing flag')
+                              this.processingQueue = false
+                         }
+                    } else {
+                        this.log('Speaker "close" event for an old/replaced speaker instance. Ignoring state reset.');
                     }
-                     // Defensive null check:
-                     if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) {
-                        // This condition shouldn't really happen if closePersistentSpeaker was called
-                        // or if end() led to close.
-                        this.log('Speaker "close" event fired, but this.persistentSpeaker still exists? Setting to null.');
-                        this.persistentSpeaker = null;
-                     } else if (!this.persistentSpeaker) {
-                         this.log('Speaker "close" event fired, speaker reference already null.');
-                     }
-
                 })
 
                 this.persistentSpeaker.once('open', () => this.log('Persistent Speaker opened'))
@@ -718,11 +736,18 @@ module.exports = NodeHelper.create({
         // 4. Get and Write ONE Chunk
         // --- Modified: Get chunk data from the object ---
         const queueItem = this.audioQueue.shift(); // Take the next item {timestamp, data}
+        if (!queueItem) {
+             // This could happen if the queue was cleared between the length check and shift() - unlikely but possible
+             this.warn("_processQueue: Queue was empty when trying to shift(). Stopping loop.")
+             this.processingQueue = false;
+             if(this.persistentSpeaker) this.persistentSpeaker.end(); // Ensure speaker closes
+             return;
+        }
         const chunkBase64 = queueItem.data;
         // --- End Modification ---
         const buffer = Buffer.from(chunkBase64, 'base64')
 
-        // Use a local reference in case the speaker is closed by an error during write
+        // Use a local reference in case the speaker is closed by an error or cleared by interrupt during write
         const speakerToWrite = this.persistentSpeaker;
 
         speakerToWrite.write(buffer, (err) => {
@@ -730,15 +755,15 @@ module.exports = NodeHelper.create({
             // This prevents acting on callbacks for speakers that were closed due to errors or interrupts.
             if (speakerToWrite !== this.persistentSpeaker || (this.persistentSpeaker && this.persistentSpeaker.destroyed)) {
                 this.log("_processQueue write callback: Speaker changed or destroyed during write. Ignoring callback.")
+                // Do not continue processing with an old/invalid speaker reference
                 return;
             }
 
             if (err) {
                 this.error("Error writing buffer to persistent speaker:", err)
-                // The speaker's 'error' listener should have triggered closePersistentSpeaker()
-                // Avoid calling closePersistentSpeaker directly here to prevent race conditions/double calls.
-                // The processingQueue flag should be reset by closePersistentSpeaker.
-                return // Stop the loop on error
+                // The speaker's 'error' listener should have triggered closePersistentSpeaker() which sets flags.
+                // No need to call closePersistentSpeaker() directly here.
+                return // Stop the loop implicitly as error handler should reset state.
             }
 
             // Write successful
@@ -753,10 +778,10 @@ module.exports = NodeHelper.create({
                 this.log("Audio queue empty after playing chunk. Ending speaker stream gracefully")
                  if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) {
                      // Call end() - allows last chunk to play, then 'close' event fires
+                     // The 'close' event handler will set persistentSpeaker = null and potentially reset processingQueue.
                      this.persistentSpeaker.end(() => {
                         this.log("Speaker .end() callback fired after last chunk write")
-                        // The 'close' listener handles the actual state cleanup (setting speaker=null)
-                        // but we need to ensure the processing flag is false here.
+                        // Set processingQueue to false here as we know this is the natural end of the current playback cycle.
                         this.processingQueue = false;
                         this.log("_processQueue loop finished naturally.")
                      })
@@ -771,7 +796,8 @@ module.exports = NodeHelper.create({
 
     // Helper to Close Speaker Cleanly
     closePersistentSpeaker() {
-        if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) {
+        // Check if a speaker instance exists and hasn't already been destroyed
+        if (this.persistentSpeaker && typeof this.persistentSpeaker.destroy === 'function' && !this.persistentSpeaker.destroyed) {
             this.log("Closing persistent speaker...")
             const speakerToClose = this.persistentSpeaker; // Local reference
             this.persistentSpeaker = null // Set to null immediately to prevent reuse
@@ -779,36 +805,50 @@ module.exports = NodeHelper.create({
 
             try {
                  // Remove listeners to prevent acting on events after initiating close
-                 speakerToClose.removeAllListeners() // Remove all listeners associated with this speaker
+                 if (typeof speakerToClose.removeAllListeners === 'function') {
+                    speakerToClose.removeAllListeners() // Remove all listeners associated with this speaker
+                 }
 
-                 // Call end to flush and close gracefully
-                 // Added a check to make sure end is callable
+                 // Call end to flush and close gracefully, then destroy
                  if (typeof speakerToClose.end === 'function') {
                      speakerToClose.end(() => {
                          this.log("Speaker .end() callback fired during closePersistentSpeaker")
-                         // Optional: force destroy if end() doesn't close quickly enough? Usually not needed.
+                         // Force destroy after end callback, ensuring resources are released
+                         if (typeof speakerToClose.destroy === 'function' && !speakerToClose.destroyed) {
+                             speakerToClose.destroy();
+                             this.log("Speaker explicitly destroyed after end().");
+                         }
                      })
                  } else {
-                    this.warn("Speaker object did not have an end method during closePersistentSpeaker.")
+                    // If no end method, just destroy
+                    this.warn("Speaker object did not have an end method during closePersistentSpeaker. Destroying directly.")
+                    speakerToClose.destroy();
                  }
-                 this.log("Speaker close initiated, state reset")
+                 this.log("Speaker close/destroy initiated, state reset")
 
             } catch (e) {
-                this.error("Error trying to close persistent speaker:", e)
+                this.error("Error trying to close/destroy persistent speaker:", e)
                 // Ensure null even if close fails (already done above)
                 // Ensure flag is false (already done above)
+                 if (speakerToClose && typeof speakerToClose.destroy === 'function' && !speakerToClose.destroyed) {
+                    // Attempt destroy again on error
+                    try { speakerToClose.destroy(); } catch (e2) { this.error("Error during final destroy attempt:", e2)}
+                 }
             }
         } else {
             // If speaker doesn't exist or already destroyed, ensure state is correct
-            // Log if we attempt to close a non-existent or already closed speaker
             if (this.persistentSpeaker === null) {
-                //this.log("closePersistentSpeaker called, but speaker already null.") // Can be noisy
+                // this.log("closePersistentSpeaker called, but speaker already null.") // Can be noisy
             } else if (this.persistentSpeaker && this.persistentSpeaker.destroyed) {
-                //this.log("closePersistentSpeaker called, but speaker already destroyed.") // Can be noisy
+                // this.log("closePersistentSpeaker called, but speaker already destroyed.") // Can be noisy
                 this.persistentSpeaker = null; // Ensure reference is cleared
+            } else if (this.persistentSpeaker) {
+                 this.warn("closePersistentSpeaker called, speaker exists but lacks destroy() or is in unexpected state.");
+                 this.persistentSpeaker = null; // Clear ref anyway
             }
-            this.persistentSpeaker = null // Ensure null
-            this.processingQueue = false // Reset flag just in case
+            // Ensure flags are correct even if no speaker needed closing
+            this.persistentSpeaker = null
+            this.processingQueue = false
         }
     } // --- End closePersistentSpeaker ---
 

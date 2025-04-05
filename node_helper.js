@@ -15,7 +15,7 @@ const ENCODING = 'signed-integer'
 const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
 // --- New: Mime type specifically for the interrupt payload ---
-const GEMINI_INTERRUPT_MIME_TYPE = `audio/pcm;rate=24000` // As requested
+const GEMINI_INTERRUPT_MIME_TYPE = `audio/pcm;rate=${OUTPUT_SAMPLE_RATE}`
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp' // Or 'gemini-1.5-pro-exp' etc.
@@ -643,7 +643,7 @@ module.exports = NodeHelper.create({
         }
     },
 
-    // Process the audio queue for playback (low-latency approach)
+// Process the audio queue for playback (low-latency approach)
     _processQueue() {
         // 1. Check Stop Condition (Queue Empty)
         if (this.audioQueue.length === 0) {
@@ -653,7 +653,7 @@ module.exports = NodeHelper.create({
             // The write callback handles ending the speaker when the queue is empty *after* a write.
             // If we enter _processQueue and the queue is *already* empty, it means
             // either it was cleared (e.g., by interrupt) or the previous cycle finished.
-            if (this.persistentSpeaker && !this.persistentSpeaker.destroyed && this.processingQueue) {
+             if (this.persistentSpeaker && !this.persistentSpeaker.destroyed && this.processingQueue) {
                  this.log("_processQueue: Queue empty on entry, likely finished or interrupted. Ensuring speaker ends.")
                  // If the speaker exists and we thought we were processing,
                  // call end() to ensure graceful shutdown after any pending write.
@@ -681,41 +681,52 @@ module.exports = NodeHelper.create({
         if (!this.persistentSpeaker || this.persistentSpeaker.destroyed) {
             this.log("Creating new persistent speaker instance")
             try {
-                this.persistentSpeaker = new Speaker({
+                // --- FIX AREA START ---
+                // Create the speaker instance first
+                const newSpeaker = new Speaker({
                     channels: CHANNELS,
                     bitDepth: BITS,
                     sampleRate: OUTPUT_SAMPLE_RATE,
-                })
+                });
 
-                // --- Setup listeners ONCE per speaker instance ---
-                // Use 'on' because the speaker persists across multiple chunks
-                this.persistentSpeaker.on('error', (err) => {
-                    this.error('Persistent Speaker Error:', err)
-                    // Ensure the speaker reference that caused the error is the current one before closing
-                    if (this.persistentSpeaker === speakerWithError) {
-                         this.closePersistentSpeaker() // Use helper to close and reset state
+                // Attach listeners using standard arrow functions
+                newSpeaker.on('error', (err) => {
+                    this.error('Persistent Speaker Error:', err);
+                    // Check if the speaker that errored is the *current* active speaker
+                    if (this.persistentSpeaker === newSpeaker) {
+                         this.log('Error is from the current speaker, closing it.');
+                         this.closePersistentSpeaker(); // Use helper to close and reset state
                     } else {
-                         this.warn('Received error for an old/replaced speaker instance. Ignoring.')
+                         this.warn('Received error for an old/replaced speaker instance. Ignoring.');
                     }
-                }.bind(null, this.persistentSpeaker)) // Bind the current speaker instance to the error handler
+                });
 
-                this.persistentSpeaker.on('close', () => {
-                     const speakerThatClosed = this.persistentSpeaker; // Capture ref *at time of event*
-                    this.log('Persistent Speaker Closed Event')
-                    // Only reset state if the speaker that closed is the one we currently reference
-                    // (prevents race conditions if a new speaker was created quickly after an error/interrupt)
-                    if (this.persistentSpeaker === speakerThatClosed) {
-                         this.persistentSpeaker = null // Clear the reference
+                newSpeaker.on('close', () => {
+                    this.log('Persistent Speaker Closed Event');
+                    // Check if the speaker that closed is the *current* active speaker
+                    // It's possible closePersistentSpeaker already set this.persistentSpeaker to null
+                    if (this.persistentSpeaker === newSpeaker || !this.persistentSpeaker) {
+                         this.log('Close event is for the current (or recently closed) speaker.');
+                         // Ensure reference is cleared if closePersistentSpeaker didn't already do it
+                         if(this.persistentSpeaker === newSpeaker) this.persistentSpeaker = null;
+
+                         // Reset processing flag ONLY if it was true - prevents resetting if already stopped.
                          if (this.processingQueue) {
-                              this.log('Speaker closed. Resetting processing flag')
-                              this.processingQueue = false
+                              this.log('Speaker closed. Resetting processing flag');
+                              this.processingQueue = false;
                          }
                     } else {
-                        this.log('Speaker "close" event for an old/replaced speaker instance. Ignoring state reset.');
+                       this.log('Speaker "close" event for an old/replaced speaker instance. Ignoring state reset.');
                     }
-                })
+                });
 
-                this.persistentSpeaker.once('open', () => this.log('Persistent Speaker opened'))
+                newSpeaker.once('open', () => {
+                    this.log('Persistent Speaker opened');
+                });
+
+                // Now assign the fully configured speaker instance to the helper's state
+                this.persistentSpeaker = newSpeaker;
+                // --- FIX AREA END ---
 
             } catch (e) {
                 this.error('Failed to create persistent speaker:', e)
@@ -726,7 +737,7 @@ module.exports = NodeHelper.create({
             }
         }
 
-         // Check again after attempting creation
+        // Check again after attempting creation
          if (!this.persistentSpeaker) {
              this.error("Cannot process queue, speaker instance is not available")
              this.processingQueue = false // Stop processing
@@ -740,7 +751,7 @@ module.exports = NodeHelper.create({
              // This could happen if the queue was cleared between the length check and shift() - unlikely but possible
              this.warn("_processQueue: Queue was empty when trying to shift(). Stopping loop.")
              this.processingQueue = false;
-             if(this.persistentSpeaker) this.persistentSpeaker.end(); // Ensure speaker closes
+             if(this.persistentSpeaker && !this.persistentSpeaker.destroyed) this.persistentSpeaker.end(); // Ensure speaker closes
              return;
         }
         const chunkBase64 = queueItem.data;
@@ -792,7 +803,7 @@ module.exports = NodeHelper.create({
                  }
             }
         }) // End write callback
-    },
+    }, // End _processQueue
 
     // Helper to Close Speaker Cleanly
     closePersistentSpeaker() {

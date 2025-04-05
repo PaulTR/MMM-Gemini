@@ -16,14 +16,14 @@ const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
 
 // Target Model and API version
-const GEMINI_MODEL = 'gemini-2.0-flash-exp' // Or 'gemini-1.5-pro-exp' etc.
+const GEMINI_MODEL = 'gemini-2.0-flash-exp'
 const API_VERSION = 'v1alpha'
 
 // --- Default Config ---
 const DEFAULT_PLAYBACK_THRESHOLD = 3 // Start playing after receiving this many chunks
 
 // --- Interrupt VAD Configuration ---
-const SPEECH_RMS_THRESHOLD = 4000;  // RMS threshold to consider a chunk as potential speech (NEEDS TUNING!)
+const SPEECH_RMS_THRESHOLD = 3000;  // RMS threshold to consider a chunk as potential speech (NEEDS TUNING!)
 const SPEECH_DECAY_TIME_MS = 2000;  // How long (ms) after the last loud chunk to still consider speech 'recent'
 
 module.exports = NodeHelper.create({
@@ -148,8 +148,8 @@ module.exports = NodeHelper.create({
                 config: { /* ... config object remains the same ... */
                     responseModalities: [Modality.AUDIO],
                     // responseModalities: [Modality.TEXT]
-                    systemInstruction: { parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }], },
-                    tools: [{ googleSearch: {}, googleSearchRetrieval: { dynamicRetrievalConfig: { mode: DynamicRetrievalConfigMode.MODE_DYNAMIC,}}, functionDeclarations: [ { name: "generate_image", description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror. If you are telling a story that has key visuals, please generate them.", parameters: { type: Type.OBJECT, description: "This object will contain a generated prompt for generating a new image through the Gemini API", properties: { image_prompt: { type: Type.STRING, description: "A prompt that should be used with image generation to create an image requested by the user using Gemini. Be as detailed as necessary." }, }, }, requierd: ['image_prompt'], }, ] }]
+                    systemInstruction: { parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities. If you are telling a story that has key visuals, please ask if the user would like to see them.' }], },
+                    tools: [{ googleSearch: {}, googleSearchRetrieval: { dynamicRetrievalConfig: { mode: DynamicRetrievalConfigMode.MODE_DYNAMIC,}}, functionDeclarations: [ { name: "generate_image", description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror.", parameters: { type: Type.OBJECT, description: "This object will contain a generated prompt for generating a new image through the Gemini API", properties: { image_prompt: { type: Type.STRING, description: "A prompt that should be used with image generation to create an image requested by the user using Gemini. Be as detailed as necessary." }, }, }, requierd: ['image_prompt'], }, ] }]
                  },
             })
             this.log(`Step 4: live.connect call initiated...`)

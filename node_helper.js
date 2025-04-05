@@ -143,20 +143,39 @@ module.exports = NodeHelper.create({
                         this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${errorMessage}` });
                     },
                     onclose: (e) => {
-                        this.warn(">>> Live Connection Callback: onclose triggered!"); // LOG INSIDE
-                        const wasOpen = this.connectionOpen;
-                        this.warn(`Live Connection CLOSED: ${JSON.stringify(e)}`);
+                        this.warn(">>> Live Connection Callback: onclose triggered!");
+                        const wasOpen = this.connectionOpen; // Check state *before* changing it
+                        const closeReason = JSON.stringify(e); // Get reason if available
+                        this.warn(`Live Connection CLOSED: ${closeReason}`);
+
+                        this.log("--- Performing full state reset due to connection close ---");
+
+                        // 1. Reset Core Connection State
                         this.connectionOpen = false;
-                        this.apiInitializing = false;
-                        this.apiInitialized = false;
-                        this.liveSession = null;
-                        this.stopRecording(true);
-                        this.closePersistentSpeaker(true); // Close speaker on connection close
+                        this.apiInitialized = false; // Mark API as needing re-initialization
+                        this.apiInitializing = false; // Ensure not stuck in initializing state
+                        this.liveSession = null;      // Clear the session object reference
+
+                        // 2. Stop Active Processes (Forceful)
+                        this.stopRecording(true);       // Force stop recording, sets isRecording=false, recordingProcess=null
+                        this.closePersistentSpeaker(true); // Force close speaker, sets persistentSpeaker=null
+
+                        // 3. Reset Playback & Queue State
                         this.processingQueue = false;
                         this.audioQueue = [];
+                        this.speakerErrorCount = 0; // Reset speaker specific errors
+
+                        // 4. Log Final State Check (for debugging)
+                        this.log(`State after close reset: ConnOpen=${this.connectionOpen}, Initialized=${this.apiInitialized}, Recording=${this.isRecording}, SessionExists=${!!this.liveSession}, SpeakerExists=${!!this.persistentSpeaker}`);
+
+                        // 5. Notify Frontend (only if connection was unexpectedly lost)
                         if (wasOpen) {
-                            this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly` });
-                        } else { this.log("Live Connection closed normally"); }
+                            this.warn("Connection closed unexpectedly.");
+                            this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly. Reason: ${closeReason}` });
+                        } else {
+                            this.log("Live Connection closed normally or was never fully open.");
+                        }
+                        this.log("--- State reset complete. Helper is ready for a new initialization attempt. ---");
                     },
                 },
                 // Define connection configuration

@@ -22,7 +22,7 @@ const GEMINI_MODEL = 'gemini-2.0-flash-exp' // Or 'gemini-1.5-pro-exp' etc.
 const API_VERSION = 'v1alpha'
 
 // --- Default Config ---
-const DEFAULT_PLAYBACK_THRESHOLD = 3 // Start playing after receiving this many chunks
+const DEFAULT_PLAYBACK_THRESHOLD = 10 // Start playing after receiving this many chunks
 // --- New: Interrupt Timeout ---
 const INTERRUPT_TIMEOUT_MS = 2000 // 2 seconds
 
@@ -580,7 +580,7 @@ module.exports = NodeHelper.create({
         }
     },
 
-    // Handle responses received from Gemini Live Connection
+// Handle responses received from Gemini Live Connection
     async handleGeminiResponse(message) {
         if (message?.setupComplete) { return } // Ignore setup message
 
@@ -596,24 +596,21 @@ module.exports = NodeHelper.create({
         // --- Extract and Queue Audio Data ---
         let extractedAudioData = content?.inlineData?.data
         if (extractedAudioData) {
-            // --- Modified: Add audio chunk with timestamp ---
             const arrivalTime = Date.now();
             this.audioQueue.push({ timestamp: arrivalTime, data: extractedAudioData });
-            // --- End Modification ---
 
-            // --- Trigger Playback if Threshold Reached and Not Already Playing ---
-            // Check if we are *not* already processing the queue AND if the queue now meets/exceeds the threshold
-            if (!this.processingQueue && this.audioQueue.length >= this.config.playbackThreshold) {
-                this.log(`Audio queue reached threshold (${this.audioQueue.length} >= ${this.config.playbackThreshold}). Starting playback`)
-                this._processQueue() // Start the playback loop
+            // --- MODIFIED Playback Trigger Logic ---
+            // If the processing loop is currently paused (false) and there's now audio in the queue,
+            // start or resume the processing loop. The threshold check is removed because
+            // once the speaker is persistent, any audio should trigger playback if paused.
+            if (!this.processingQueue && this.audioQueue.length > 0) {
+                this.log(`Audio chunk arrived while processing loop paused. Resuming/Starting playback.`);
+                this._processQueue(); // Start/Resume the playback loop
             } else if (this.processingQueue) {
-                 // If already processing, adding to the queue is enough, the loop will pick it up.
-                 // Log this condition if debugging.
-                 if (this.debug) this.log(`Audio chunk added to queue while already processing. Queue length: ${this.audioQueue.length}`)
-            } else {
-                // If not processing and threshold not met, just log if debugging.
-                if (this.debug) this.log(`Audio chunk added, queue length ${this.audioQueue.length} below threshold ${this.config.playbackThreshold}. Waiting.`)
+                 // Loop already running, it will pick up the new chunk automatically.
+                 if (this.debug) this.log(`Audio chunk added to queue while processing loop active. Queue length: ${this.audioQueue.length}`);
             }
+            // --- End MODIFIED Playback Trigger Logic ---
         }
 
         // --- Handle Function Calls ---
@@ -630,58 +627,39 @@ module.exports = NodeHelper.create({
 
         // --- Handle Blocked Prompt/Safety ---
         if (message?.serverContent?.modelTurn?.blockedReason) {
-             this.warn(`Gemini response blocked. Reason: ${message.serverContent.modelTurn.blockedReason}`)
-             this.sendToFrontend("GEMINI_RESPONSE_BLOCKED", { reason: message.serverContent.modelTurn.blockedReason })
-             // --- Clear Queue and Stop Playback on Block ---
-             this.log("Clearing queue and stopping playback due to blocked response.")
-             this.audioQueue = [] // Clear queue
-             if (this.processingQueue) {
-                 // A blocked response means we should definitely stop any ongoing playback.
-                 this.closePersistentSpeaker() // Close speaker cleanly
-             }
-             // --- End Clear Queue ---
+             // this.warn(`Gemini response blocked. Reason: ${message.serverContent.modelTurn.blockedReason}`)
+             // this.sendToFrontend("GEMINI_RESPONSE_BLOCKED", { reason: message.serverContent.modelTurn.blockedReason })
+             // // --- Clear Queue and Stop Playback on Block ---
+             // this.log("Clearing queue and stopping playback due to blocked response.")
+             // this.audioQueue = [] // Clear queue
+             // // A blocked response requires closing the speaker.
+             // this.closePersistentSpeaker(); // Close speaker cleanly
         }
-    },
+    }, // End handleGeminiResponse
 
 // Process the audio queue for playback (low-latency approach)
     _processQueue() {
         // 1. Check Stop Condition (Queue Empty)
         if (this.audioQueue.length === 0) {
-            this.log("_processQueue: Queue is empty. Checking speaker state.")
-            // If the queue becomes empty, we should *signal* the speaker to end after
-            // the current write completes, but don't necessarily close it immediately here.
-            // The write callback handles ending the speaker when the queue is empty *after* a write.
-            // If we enter _processQueue and the queue is *already* empty, it means
-            // either it was cleared (e.g., by interrupt) or the previous cycle finished.
-             if (this.persistentSpeaker && !this.persistentSpeaker.destroyed && this.processingQueue) {
-                 this.log("_processQueue: Queue empty on entry, likely finished or interrupted. Ensuring speaker ends.")
-                 // If the speaker exists and we thought we were processing,
-                 // call end() to ensure graceful shutdown after any pending write.
-                 // The 'end' callback or 'close' event handler should set processingQueue = false.
-                 this.persistentSpeaker.end(() => {
-                     this.log("Speaker .end() called from _processQueue entry check.")
-                     // It's safer for the 'close' handler or 'end' callback in the write function
-                     // to set processingQueue = false. Avoid setting it here directly.
-                 });
-            } else {
-                // Speaker doesn't exist or we weren't processing anyway. Ensure flag is false.
-                this.processingQueue = false
-                this.log("_processQueue: Queue empty, speaker null/destroyed or processing flag false. Loop stopping.")
-            }
-            return // Stop the loop
+            // --- MODIFICATION START ---
+            // Queue is empty, so the processing loop should pause.
+            // Do NOT call .end() on the speaker.
+            this.processingQueue = false;
+            this.log("_processQueue: Queue empty. Pausing playback processing loop. Speaker remains open.");
+            // --- MODIFICATION END ---
+            return // Stop/pause the loop
         }
 
-        // 2. Ensure Playback Flag is Set
+        // 2. Ensure Playback Flag is Set (Indicates loop is active)
         if (!this.processingQueue) {
              this.processingQueue = true
-             this.log("_processQueue: Starting playback loop")
+             this.log("_processQueue: Resuming/Starting playback processing loop.")
         }
 
-        // 3. Ensure Speaker Exists (Create ONLY if needed)
+        // 3. Ensure Speaker Exists (Create ONLY if needed, remains persistent)
         if (!this.persistentSpeaker || this.persistentSpeaker.destroyed) {
-            this.log("Creating new persistent speaker instance")
+            this.log("Creating new persistent speaker instance (will remain open)")
             try {
-                // --- FIX AREA START ---
                 // Create the speaker instance first
                 const newSpeaker = new Speaker({
                     channels: CHANNELS,
@@ -726,7 +704,6 @@ module.exports = NodeHelper.create({
 
                 // Now assign the fully configured speaker instance to the helper's state
                 this.persistentSpeaker = newSpeaker;
-                // --- FIX AREA END ---
 
             } catch (e) {
                 this.error('Failed to create persistent speaker:', e)
@@ -739,68 +716,52 @@ module.exports = NodeHelper.create({
 
         // Check again after attempting creation
          if (!this.persistentSpeaker) {
-             this.error("Cannot process queue, speaker instance is not available")
+             this.error("Cannot process queue, speaker instance is not available or was destroyed")
              this.processingQueue = false // Stop processing
              return
          }
 
         // 4. Get and Write ONE Chunk
-        // --- Modified: Get chunk data from the object ---
         const queueItem = this.audioQueue.shift(); // Take the next item {timestamp, data}
         if (!queueItem) {
-             // This could happen if the queue was cleared between the length check and shift() - unlikely but possible
-             this.warn("_processQueue: Queue was empty when trying to shift(). Stopping loop.")
+             // Should not happen if initial length check passed, but good safeguard
+             this.warn("_processQueue: Queue became empty unexpectedly before shift(). Pausing loop.")
              this.processingQueue = false;
-             if(this.persistentSpeaker && !this.persistentSpeaker.destroyed) this.persistentSpeaker.end(); // Ensure speaker closes
+             // Do NOT end speaker here
              return;
         }
         const chunkBase64 = queueItem.data;
-        // --- End Modification ---
         const buffer = Buffer.from(chunkBase64, 'base64')
 
-        // Use a local reference in case the speaker is closed by an error or cleared by interrupt during write
+        // Use a local reference in case the speaker is closed during write
         const speakerToWrite = this.persistentSpeaker;
 
         speakerToWrite.write(buffer, (err) => {
             // Check if the speaker we wrote to is still the active one and hasn't been destroyed
-            // This prevents acting on callbacks for speakers that were closed due to errors or interrupts.
             if (speakerToWrite !== this.persistentSpeaker || (this.persistentSpeaker && this.persistentSpeaker.destroyed)) {
                 this.log("_processQueue write callback: Speaker changed or destroyed during write. Ignoring callback.")
-                // Do not continue processing with an old/invalid speaker reference
                 return;
             }
 
             if (err) {
                 this.error("Error writing buffer to persistent speaker:", err)
-                // The speaker's 'error' listener should have triggered closePersistentSpeaker() which sets flags.
-                // No need to call closePersistentSpeaker() directly here.
-                return // Stop the loop implicitly as error handler should reset state.
+                // The speaker's 'error' listener should trigger closePersistentSpeaker()
+                return // Stop the loop implicitly
             }
 
             // Write successful
 
-            // 5. Decide Next Step (Continue Loop or End Stream)
+            // 5. Decide Next Step (Continue Loop or Pause)
             if (this.audioQueue.length > 0) {
-                // More chunks waiting? Immediately schedule the next write
-                // Use setImmediate to avoid potential stack overflows on very fast chunk arrival
+                // More chunks waiting? Immediately schedule the next write in the loop
                 setImmediate(() => this._processQueue());
             } else {
-                // Queue is empty *after* taking the last chunk
-                this.log("Audio queue empty after playing chunk. Ending speaker stream gracefully")
-                 if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) {
-                     // Call end() - allows last chunk to play, then 'close' event fires
-                     // The 'close' event handler will set persistentSpeaker = null and potentially reset processingQueue.
-                     this.persistentSpeaker.end(() => {
-                        this.log("Speaker .end() callback fired after last chunk write")
-                        // Set processingQueue to false here as we know this is the natural end of the current playback cycle.
-                        this.processingQueue = false;
-                        this.log("_processQueue loop finished naturally.")
-                     })
-                 } else {
-                     // Speaker already gone? Ensure flag is false
-                     this.log("_processQueue: Speaker already gone when trying to end stream.")
-                     this.processingQueue = false
-                 }
+                // --- MODIFICATION START ---
+                // Queue is empty *after* writing the last chunk. Pause the loop.
+                // Do NOT call .end() on the speaker.
+                this.processingQueue = false;
+                this.log("Audio queue empty after playing chunk. Pausing playback processing loop. Speaker remains open.");
+                // --- MODIFICATION END ---
             }
         }) // End write callback
     }, // End _processQueue

@@ -23,9 +23,8 @@ const API_VERSION = 'v1alpha'
 const DEFAULT_PLAYBACK_THRESHOLD = 3 // Start playing after receiving this many chunks
 
 // --- Interrupt VAD Configuration ---
-// REMOVED: const INTERRUPT_TIMEOUT_MS = 2000;
-const SPEECH_RMS_THRESHOLD = 500;  // RMS threshold to consider a chunk as potential speech (NEEDS TUNING!)
-const SPEECH_DECAY_TIME_MS = 500;  // How long (ms) after the last loud chunk to still consider speech 'recent'
+const SPEECH_RMS_THRESHOLD = 1500;  // RMS threshold to consider a chunk as potential speech (NEEDS TUNING!)
+const SPEECH_DECAY_TIME_MS = 2000;  // How long (ms) after the last loud chunk to still consider speech 'recent'
 
 module.exports = NodeHelper.create({
     // --- Helper State ---

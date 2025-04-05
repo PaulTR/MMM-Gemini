@@ -39,8 +39,7 @@ module.exports = NodeHelper.create({
     apiInitialized: false,
     connectionOpen: false,
     apiInitializing: false,
-    // REMOVED: debug: false,
-    interruptEnabled: true, // --- ADDED: Flag to control interrupt logic ---
+    interruptEnabled: true,
     config: {
         playbackThreshold: DEFAULT_PLAYBACK_THRESHOLD
     },
@@ -55,21 +54,6 @@ module.exports = NodeHelper.create({
     // --- Lifecycle Functions ---
     start: function() {
         this.log(`Starting node_helper...`)
-        this.recordingProcess = null
-        this.isRecording = false
-        this.audioQueue = []
-        this.persistentSpeaker = null
-        this.processingQueue = false
-        this.apiInitialized = false
-        this.connectionOpen = false
-        this.apiInitializing = false
-        this.liveSession = null
-        this.genAI = null
-        this.imaGenAI = null
-        this.apiKey = null
-        this.config = { playbackThreshold: DEFAULT_PLAYBACK_THRESHOLD }
-        this.lastSpeechTimestamp = 0;
-        this.interruptEnabled = true; // Reset interrupt flag on start
     },
 
     // Initialize Google GenAI and Live Connection

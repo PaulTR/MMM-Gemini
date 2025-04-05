@@ -14,6 +14,8 @@ const AUDIO_TYPE = 'raw' // Gemini Live API uses raw data streams
 const ENCODING = 'signed-integer'
 const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
+// --- New: Mime type specifically for the interrupt payload ---
+const GEMINI_INTERRUPT_MIME_TYPE = `audio/pcm;rate=24000` // As requested
 
 // Target Model and API version
 const GEMINI_MODEL = 'gemini-2.0-flash-exp' // Or 'gemini-1.5-pro-exp' etc.
@@ -21,6 +23,8 @@ const API_VERSION = 'v1alpha'
 
 // --- Default Config ---
 const DEFAULT_PLAYBACK_THRESHOLD = 3 // Start playing after receiving this many chunks
+// --- New: Interrupt Timeout ---
+const INTERRUPT_TIMEOUT_MS = 2000 // 2 seconds
 
 module.exports = NodeHelper.create({
     // --- Helper State ---
@@ -29,7 +33,8 @@ module.exports = NodeHelper.create({
     apiKey: null,
     recordingProcess: null,
     isRecording: false,
-    audioQueue: [],
+    // --- Modified: audioQueue now stores objects with timestamps ---
+    audioQueue: [], // Array of { timestamp: number, data: string (base64) }
     persistentSpeaker: null, // Use a speaker instance that persists while playing
     processingQueue: false, // Indicates if the playback loop (_processQueue) is active
     apiInitialized: false,
@@ -51,7 +56,7 @@ module.exports = NodeHelper.create({
         this.log(`Starting node_helper...`)
         this.recordingProcess = null
         this.isRecording = false
-        this.audioQueue = []
+        this.audioQueue = [] // Reset audio queue
         this.persistentSpeaker = null // Initialize as null
         this.processingQueue = false
         this.apiInitialized = false
@@ -129,7 +134,7 @@ module.exports = NodeHelper.create({
                         this.stopRecording(true)
                         this.closePersistentSpeaker() // Close speaker on error
                         this.processingQueue = false
-                        this.audioQueue = []
+                        this.audioQueue = [] // Clear queue on error
                         this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${e?.message || e}` })
                     },
                     onclose: (e) => {
@@ -142,7 +147,7 @@ module.exports = NodeHelper.create({
                         this.stopRecording(true)
                         this.closePersistentSpeaker() // Close speaker on close
                         this.processingQueue = false
-                        this.audioQueue = []
+                        this.audioQueue = [] // Clear queue on close
                         if (wasOpen) {
                             this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly` })
                             // Consider delay/retry logic before re-init
@@ -191,7 +196,7 @@ module.exports = NodeHelper.create({
             this.apiInitializing = false
             this.closePersistentSpeaker() // Ensure speaker is closed on init failure
             this.processingQueue = false
-            this.audioQueue = []
+            this.audioQueue = [] // Clear queue on init failure
             this.sendToFrontend("HELPER_ERROR", { error: `API Initialization failed: ${error.message || error}` })
         }
     },
@@ -275,6 +280,8 @@ module.exports = NodeHelper.create({
 
         this.log(">>> startRecording: Recorder options:", recorderOptions)
         this.log(`>>> startRecording: Using input MIME Type: ${GEMINI_INPUT_MIME_TYPE}`)
+        this.log(`>>> startRecording: Using interrupt MIME Type: ${GEMINI_INTERRUPT_MIME_TYPE}`)
+
 
         try {
             this.log(">>> startRecording: Attempting recorder.record()...")
@@ -299,20 +306,65 @@ module.exports = NodeHelper.create({
 
                 const base64Chunk = chunk.toString('base64')
                 chunkCounter++ // Increment counter for valid chunks
+                const now = Date.now()
+
+                let sendInterruptPayload = false; // Flag to determine payload type
+
+                // --- Interrupt Check ---
+                if (this.audioQueue.length > 0) { // Only check if there's something in the output queue
+                    const lastOutputTimestamp = this.audioQueue[this.audioQueue.length - 1].timestamp;
+                    const diff = now - lastOutputTimestamp;
+
+                    if (diff > INTERRUPT_TIMEOUT_MS) {
+                        sendInterruptPayload = true;
+                        this.log(`>>> INTERRUPT DETECTED! Time since last output: ${diff}ms > ${INTERRUPT_TIMEOUT_MS}ms`)
+
+                        // --- Interrupt Actions ---
+                        this.log(">>> Clearing output audio queue due to interrupt.")
+                        this.audioQueue = []; // Empty the queue
+
+                        this.log(">>> Stopping current playback due to interrupt.")
+                        this.closePersistentSpeaker(); // Stop speaker and reset playback flag
+
+                        this.sendToFrontend("INTERRUPT_DETECTED"); // Notify frontend (optional)
+                    }
+                }
+                // --- End Interrupt Check ---
 
                 try {
-                    const payloadToSend = { media: { mimeType: GEMINI_INPUT_MIME_TYPE, data: base64Chunk } }
+                    let payloadToSend;
+                    if (sendInterruptPayload) {
+                        // --- Construct Interrupt Payload ---
+                        payloadToSend = {
+                            text: "you were interrupted, sorry! This is the last data chunk that was played", // Text as requested
+                            media: {
+                                mimeType: GEMINI_INTERRUPT_MIME_TYPE, // Use specific interrupt mime type
+                                data: base64Chunk // Send the interrupting chunk's data
+                            }
+                        };
+                        this.log(`>>> Sending INTERRUPT payload (chunk #${chunkCounter})`)
+                    } else {
+                        // --- Construct Regular Payload ---
+                        payloadToSend = {
+                            media: {
+                                mimeType: GEMINI_INPUT_MIME_TYPE, // Use regular input mime type
+                                data: base64Chunk
+                            }
+                        };
+                        // Only log regular sends if debugging, otherwise it's too noisy
+                        if (this.debug) this.log(`>>> Sending regular audio payload (chunk #${chunkCounter})`)
+                    }
 
                     // Check liveSession again just before sending
                     if (this.liveSession && this.connectionOpen) {
                         await this.liveSession.sendRealtimeInput(payloadToSend)
                     } else {
-                        this.warn(`Cannot send chunk #${chunkCounter}, connection/session lost just before send`)
+                        this.warn(`Cannot send chunk #${chunkCounter} (interrupt=${sendInterruptPayload}), connection/session lost just before send`)
                         this.stopRecording(true) // Stop recording if connection lost
                     }
                 } catch (apiError) {
                     const errorTime = new Date().toISOString()
-                    this.error(`[${errorTime}] Error sending audio chunk #${chunkCounter}:`, apiError)
+                    this.error(`[${errorTime}] Error sending audio chunk #${chunkCounter} (interrupt=${sendInterruptPayload}):`, apiError)
 
                     if (apiError.stack) {
                         this.error(`Gemini send error stack:`, apiError.stack)
@@ -544,7 +596,10 @@ module.exports = NodeHelper.create({
         // --- Extract and Queue Audio Data ---
         let extractedAudioData = content?.inlineData?.data
         if (extractedAudioData) {
-            this.audioQueue.push(extractedAudioData)
+            // --- Modified: Add audio chunk with timestamp ---
+            const arrivalTime = Date.now();
+            this.audioQueue.push({ timestamp: arrivalTime, data: extractedAudioData });
+            // --- End Modification ---
 
             // --- Trigger Playback if Threshold Reached and Not Already Playing ---
             if (!this.processingQueue && this.audioQueue.length >= this.config.playbackThreshold) {
@@ -570,9 +625,9 @@ module.exports = NodeHelper.create({
              this.warn(`Gemini response blocked. Reason: ${message.serverContent.modelTurn.blockedReason}`)
              this.sendToFrontend("GEMINI_RESPONSE_BLOCKED", { reason: message.serverContent.modelTurn.blockedReason })
              // --- Clear Queue and Stop Playback on Block ---
-             this.audioQueue = []
+             this.log("Clearing queue and stopping playback due to blocked response.")
+             this.audioQueue = [] // Clear queue
              if (this.processingQueue) {
-                 this.log("Stopping playback due to blocked response")
                  this.closePersistentSpeaker() // Close speaker cleanly
              }
              // --- End Clear Queue ---
@@ -611,21 +666,35 @@ module.exports = NodeHelper.create({
                 })
 
                 // --- Setup listeners ONCE per speaker instance ---
-                this.persistentSpeaker.once('error', (err) => { // Use 'once' if we always recreate? No, use 'on' for persistent
+                // Use 'on' because the speaker persists across multiple chunks
+                this.persistentSpeaker.on('error', (err) => {
                     this.error('Persistent Speaker Error:', err)
                     this.closePersistentSpeaker() // Use helper to close and reset state
                 })
 
-                this.persistentSpeaker.once('close', () => { // Use 'once' for cleanup handler
+                this.persistentSpeaker.on('close', () => {
                     this.log('Persistent Speaker Closed Event')
                     // Ensure state is clean if closed unexpectedly or after end()
-                    this.persistentSpeaker = null
+                    // Only set speaker to null if it's the current one being closed
+                    // This listener might fire after a new speaker is potentially created in an error scenario.
+                    // However, closePersistentSpeaker already sets this.persistentSpeaker = null.
+                    // This listener mainly confirms the closure and resets the flag if needed.
                     if (this.processingQueue) {
-                         this.log('Speaker closed. Resetting processing flag')
+                         this.log('Speaker closed unexpectedly during processing. Resetting flag.')
                          this.processingQueue = false
+                         // If queue still has items, we might want to restart, but errors
+                         // usually mean we should stop. closePersistentSpeaker handles the state reset.
                     }
-                    // Optional: Check if queue has items again and restart?
-                    // if(this.audioQueue.length > 0 && !this.processingQueue) { this._processQueue() }
+                     // Defensive null check:
+                     if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) {
+                        // This condition shouldn't really happen if closePersistentSpeaker was called
+                        // or if end() led to close.
+                        this.log('Speaker "close" event fired, but this.persistentSpeaker still exists? Setting to null.');
+                        this.persistentSpeaker = null;
+                     } else if (!this.persistentSpeaker) {
+                         this.log('Speaker "close" event fired, speaker reference already null.');
+                     }
+
                 })
 
                 this.persistentSpeaker.once('open', () => this.log('Persistent Speaker opened'))
@@ -647,14 +716,28 @@ module.exports = NodeHelper.create({
          }
 
         // 4. Get and Write ONE Chunk
-        const chunkBase64 = this.audioQueue.shift() // Take the next chunk
+        // --- Modified: Get chunk data from the object ---
+        const queueItem = this.audioQueue.shift(); // Take the next item {timestamp, data}
+        const chunkBase64 = queueItem.data;
+        // --- End Modification ---
         const buffer = Buffer.from(chunkBase64, 'base64')
 
-        this.persistentSpeaker.write(buffer, (err) => {
+        // Use a local reference in case the speaker is closed by an error during write
+        const speakerToWrite = this.persistentSpeaker;
+
+        speakerToWrite.write(buffer, (err) => {
+            // Check if the speaker we wrote to is still the active one and hasn't been destroyed
+            // This prevents acting on callbacks for speakers that were closed due to errors or interrupts.
+            if (speakerToWrite !== this.persistentSpeaker || (this.persistentSpeaker && this.persistentSpeaker.destroyed)) {
+                this.log("_processQueue write callback: Speaker changed or destroyed during write. Ignoring callback.")
+                return;
+            }
+
             if (err) {
                 this.error("Error writing buffer to persistent speaker:", err)
-                // Speaker error listener should handle cleanup via closePersistentSpeaker()
-                // Avoid calling closePersistentSpeaker directly here to prevent race conditions
+                // The speaker's 'error' listener should have triggered closePersistentSpeaker()
+                // Avoid calling closePersistentSpeaker directly here to prevent race conditions/double calls.
+                // The processingQueue flag should be reset by closePersistentSpeaker.
                 return // Stop the loop on error
             }
 
@@ -663,7 +746,8 @@ module.exports = NodeHelper.create({
             // 5. Decide Next Step (Continue Loop or End Stream)
             if (this.audioQueue.length > 0) {
                 // More chunks waiting? Immediately schedule the next write
-                this._processQueue()
+                // Use setImmediate to avoid potential stack overflows on very fast chunk arrival
+                setImmediate(() => this._processQueue());
             } else {
                 // Queue is empty *after* taking the last chunk
                 this.log("Audio queue empty after playing chunk. Ending speaker stream gracefully")
@@ -671,10 +755,14 @@ module.exports = NodeHelper.create({
                      // Call end() - allows last chunk to play, then 'close' event fires
                      this.persistentSpeaker.end(() => {
                         this.log("Speaker .end() callback fired after last chunk write")
-                        // The 'close' listener handles the actual state cleanup
+                        // The 'close' listener handles the actual state cleanup (setting speaker=null)
+                        // but we need to ensure the processing flag is false here.
+                        this.processingQueue = false;
+                        this.log("_processQueue loop finished naturally.")
                      })
                  } else {
                      // Speaker already gone? Ensure flag is false
+                     this.log("_processQueue: Speaker already gone when trying to end stream.")
                      this.processingQueue = false
                  }
             }
@@ -685,27 +773,41 @@ module.exports = NodeHelper.create({
     closePersistentSpeaker() {
         if (this.persistentSpeaker && !this.persistentSpeaker.destroyed) {
             this.log("Closing persistent speaker...")
+            const speakerToClose = this.persistentSpeaker; // Local reference
+            this.persistentSpeaker = null // Set to null immediately to prevent reuse
+            this.processingQueue = false // Reset state immediately
+
             try {
                  // Remove listeners to prevent acting on events after initiating close
-                 this.persistentSpeaker.removeAllListeners() // Remove all listeners associated with this speaker
+                 speakerToClose.removeAllListeners() // Remove all listeners associated with this speaker
 
                  // Call end to flush and close gracefully
-                 // The 'close' event should ideally handle state reset, but do it defensively here too
-                 this.persistentSpeaker.end(() => {
-                     this.log("Speaker .end() callback fired during closePersistentSpeaker")
-                 })
-                 this.persistentSpeaker = null
-                 this.processingQueue = false // Reset state immediately after initiating close
+                 // Added a check to make sure end is callable
+                 if (typeof speakerToClose.end === 'function') {
+                     speakerToClose.end(() => {
+                         this.log("Speaker .end() callback fired during closePersistentSpeaker")
+                         // Optional: force destroy if end() doesn't close quickly enough? Usually not needed.
+                     })
+                 } else {
+                    this.warn("Speaker object did not have an end method during closePersistentSpeaker.")
+                 }
                  this.log("Speaker close initiated, state reset")
 
             } catch (e) {
                 this.error("Error trying to close persistent speaker:", e)
-                this.persistentSpeaker = null // Ensure null even if close fails
-                this.processingQueue = false // Reset state
+                // Ensure null even if close fails (already done above)
+                // Ensure flag is false (already done above)
             }
         } else {
             // If speaker doesn't exist or already destroyed, ensure state is correct
-            this.persistentSpeaker = null
+            // Log if we attempt to close a non-existent or already closed speaker
+            if (this.persistentSpeaker === null) {
+                //this.log("closePersistentSpeaker called, but speaker already null.") // Can be noisy
+            } else if (this.persistentSpeaker && this.persistentSpeaker.destroyed) {
+                //this.log("closePersistentSpeaker called, but speaker already destroyed.") // Can be noisy
+                this.persistentSpeaker = null; // Ensure reference is cleared
+            }
+            this.persistentSpeaker = null // Ensure null
             this.processingQueue = false // Reset flag just in case
         }
     } // --- End closePersistentSpeaker ---

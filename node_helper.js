@@ -134,7 +134,7 @@ module.exports = NodeHelper.create({
                         this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${e?.message || e}` })
                     },
                     onclose: (e) => {
-                        this.warn(`Live Connection CLOSED: ` + JSON.stringify())
+                        this.warn(`Live Connection CLOSED: ` + JSON.stringify(e))
                         const wasOpen = this.connectionOpen
                         this.connectionOpen = false
                         this.apiInitializing = false

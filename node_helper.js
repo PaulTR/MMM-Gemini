@@ -31,6 +31,7 @@ module.exports = NodeHelper.create({
     apiInitialized: false,
     connectionOpen: false,
     apiInitializing: false,
+    // imaGenAI: null,
 
     // Logger functions
     log: function(...args) { console.log(`[${new Date().toISOString()}] LOG (${this.name}):`, ...args) },
@@ -38,13 +39,9 @@ module.exports = NodeHelper.create({
     warn: function(...args) { console.warn(`[${new Date().toISOString()}] WARN (${this.name}):`, ...args) },
     sendToFrontend: function(notification, payload) { this.sendSocketNotification(notification, payload) },
 
-    // Maybe a leftover from earlier attempts, might just remove all together. Will need to test when things are stable
-    start: function() {
-        this.log(`Starting node_helper...`)
-        this.applyDefaultState()
-    },
-
     applyDefaultState() {
+        this.genAI = null
+        this.liveSession = null
         this.recordingProcess = null
         this.isRecording = false
         this.audioQueue = []
@@ -53,10 +50,8 @@ module.exports = NodeHelper.create({
         this.apiInitialized = false
         this.connectionOpen = false
         this.apiInitializing = false
-        this.liveSession = null
-        this.genAI = null
+        
         // this.imaGenAI = null
-        this.apiKey = null
     },
 
     // Initialize Google GenAI (currently removed for testing, but works. Need a dedicated genai connection for image gen since live with v1alpha wasn't generating images) and Live Connection
@@ -124,23 +119,22 @@ module.exports = NodeHelper.create({
                         this.audioQueue = []
                         this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${e?.message || e}` })
                     },
-                    onclose: (e) => {
+                    onclose: async (e) => {
+                        // TODO: Need to reset the state on this class and restart everything
                         this.warn(`Live Connection CLOSED:`)
                         this.warn(JSON.stringify(e, null, 2))
                         
                         const wasOpen = this.connectionOpen
-                        this.connectionOpen = false
-                        this.apiInitializing = false
-                        this.apiInitialized = false
-                        this.liveSession = null
+                        this.audioQueue = []
                         this.stopRecording(true)
                         this.closePersistentSpeaker() // Close speaker on close
-                        this.processingQueue = false
-                        this.audioQueue = []
+                        
                         if (wasOpen) {
-                            this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly` })
-                            // Consider delay/retry logic before re-init
+                            this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly. Retrying...` })
                         } else { this.log("Live Connection closed normally") }
+
+                        this.applyDefaultState()
+                        await this.initialize(this.apiKey)
                     },
                 },
                 
@@ -523,8 +517,8 @@ module.exports = NodeHelper.create({
             this.audioQueue.push(extractedAudioData)
 
             // --- Trigger Playback if Threshold Reached and Not Already Playing ---
-            if (!this.processingQueue && this.audioQueue.length >= DEFAULT_PLAYBACK_THRESHOLD) {
-                this.log(`Audio queue reached threshold (${this.audioQueue.length} >= ${DEFAULT_PLAYBACK_THRESHOLD}). Starting playback`)
+            if (!this.processingQueue) {
+                this.log(`Starting playback`)
                 this._processQueue(false) // Start the playback loop
             }
         }

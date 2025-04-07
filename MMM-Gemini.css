@@ -1,4 +1,10 @@
 
+/**
+ * @license
+ * Copyright 2025 Paul Trebilcox-Ruiz
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 .mmm-gemini {
   display: flex;
   flex-direction: column;
@@ -72,8 +78,7 @@
   max-width: 90%;
   max-height: 768px;
   height: auto;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 0 auto 10px auto;
 }
 
 .mmm-gemini .image-loader {

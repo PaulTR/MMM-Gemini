@@ -99,7 +99,8 @@ module.exports = NodeHelper.create({
                         this.connectionOpen = true
                         this.apiInitializing = false
                         this.apiInitialized = true
-                        this.log("Connection OPENED.")
+                        this.log("Connection OPENED. Sending HELPER_READY")
+                        this.sendToFrontend("HELPER_READY")
                     },
                     onmessage: (message) => { this.handleGeminiResponse(message) },
                     onerror: (e) => {
@@ -343,7 +344,6 @@ module.exports = NodeHelper.create({
                     this.log(`Recording process exited normally after stop request`)
                 }
             })
-            this.sendToFrontend("HELPER_READY")
 
         } catch (recordError) {
             this.error(">>> startRecording: Failed to start recording process:", recordError)

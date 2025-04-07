@@ -71,7 +71,7 @@ Module.register("MMM-Gemini", {
           indicatorSvg = ""
           break
         default:
-          indicatorSvg = this.config.errorIndicatorSvg
+          indicatorSvg = this.config.recordingIndicatorSvg
           break
       }
     }

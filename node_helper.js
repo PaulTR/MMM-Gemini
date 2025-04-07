@@ -31,7 +31,7 @@ module.exports = NodeHelper.create({
     apiInitialized: false,
     connectionOpen: false,
     apiInitializing: false,
-    // imaGenAI: null,
+    imaGenAI: null,
 
     // Logger functions
     log: function(...args) { console.log(`[${new Date().toISOString()}] LOG (${this.name}):`, ...args) },
@@ -51,7 +51,7 @@ module.exports = NodeHelper.create({
         this.connectionOpen = false
         this.apiInitializing = false
         this.closePersistentSpeaker()
-        // this.imaGenAI = null
+        this.imaGenAI = null
     },
 
     // Initialize Google GenAI (currently removed for testing, but works. Need a dedicated genai connection for image gen since live with v1alpha wasn't generating images) and Live Connection
@@ -77,6 +77,7 @@ module.exports = NodeHelper.create({
         this.log(`Initializing GoogleGenAI for ${API_VERSION}...`)
 
         try {
+            this.sendToFrontend("INITIALIZING")
             this.log("Step 1: Creating GoogleGenAI instances...")
 
             this.genAI = new GoogleGenAI({
@@ -84,9 +85,9 @@ module.exports = NodeHelper.create({
                 httpOptions: { 'apiVersion': API_VERSION }
             })
 
-            // this.imaGenAI = new GoogleGenAI({
-            //     apiKey: this.apiKey,
-            // })
+            this.imaGenAI = new GoogleGenAI({
+                apiKey: this.apiKey,
+            })
 
             this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`)
             this.log(`Step 3: Attempting to establish Live Connection with ${GEMINI_MODEL}...`)
@@ -442,43 +443,43 @@ module.exports = NodeHelper.create({
 
         switch(functionName) {
             case "generate_image":
-                // let generateImagePrompt = args.image_prompt
-                // if (generateImagePrompt) {
-                //     this.log(`Generating image with prompt: "${generateImagePrompt}"`)
-                //     this.sendToFrontend("GEMINI_IMAGE_GENERATING")
-                //     try {
-                //         const response = await this.imaGenAI.models.generateImages({
-                //             model: 'imagen-3.0-generate-002', // Consider making model configurable
-                //             prompt: generateImagePrompt,
-                //             config: {
-                //                 numberOfImages: 1,
-                //                 includeRaiReason: true,
-                //                 // personGeneration: PersonGeneration.ALLOW_ADULT, // Uncomment if needed
-                //             },
-                //         })
+                let generateImagePrompt = args.image_prompt
+                if (generateImagePrompt) {
+                    this.log(`Generating image with prompt: "${generateImagePrompt}"`)
+                    this.sendToFrontend("GEMINI_IMAGE_GENERATING")
+                    try {
+                        const response = await this.imaGenAI.models.generateImages({
+                            model: 'imagen-3.0-generate-002', // Consider making model configurable
+                            prompt: generateImagePrompt,
+                            config: {
+                                numberOfImages: 1,
+                                includeRaiReason: true,
+                                // personGeneration: PersonGeneration.ALLOW_ADULT, // Uncomment if needed
+                            },
+                        })
 
-                //         // Handle potential safety flags/RAI reasons
-                //         if (response?.generatedImages?.[0]?.raiReason) {
-                //              this.warn(`Image generation flagged for RAI reason: ${response.generatedImages[0].raiReason}`)
-                //              this.sendToFrontend("GEMINI_IMAGE_BLOCKED", { reason: response.generatedImages[0].raiReason })
-                //         } else {
-                //             let imageBytes = response?.generatedImages?.[0]?.image?.imageBytes
-                //             if (imageBytes) {
-                //                 this.log("Image generated successfully")
-                //                 this.sendToFrontend("GEMINI_IMAGE_GENERATED", { image: imageBytes })
-                //             } else {
-                //                 this.error("Image generation response received, but no image bytes found")
-                //                 this.sendToFrontend("HELPER_ERROR", { error: "Image generation failed: No image data" })
-                //             }
-                //         }
-                //     } catch (imageError) {
-                //          this.error("Error during image generation API call:", imageError)
-                //          this.sendToFrontend("HELPER_ERROR", { error: `Image generation failed: ${imageError.message}` })
-                //     }
+                        // Handle potential safety flags/RAI reasons
+                        if (response?.generatedImages?.[0]?.raiReason) {
+                             this.warn(`Image generation flagged for RAI reason: ${response.generatedImages[0].raiReason}`)
+                             this.sendToFrontend("GEMINI_IMAGE_BLOCKED", { reason: response.generatedImages[0].raiReason })
+                        } else {
+                            let imageBytes = response?.generatedImages?.[0]?.image?.imageBytes
+                            if (imageBytes) {
+                                this.log("Image generated successfully")
+                                this.sendToFrontend("GEMINI_IMAGE_GENERATED", { image: imageBytes })
+                            } else {
+                                this.error("Image generation response received, but no image bytes found")
+                                this.sendToFrontend("HELPER_ERROR", { error: "Image generation failed: No image data" })
+                            }
+                        }
+                    } catch (imageError) {
+                         this.error("Error during image generation API call:", imageError)
+                         this.sendToFrontend("HELPER_ERROR", { error: `Image generation failed: ${imageError.message}` })
+                    }
 
-                // } else {
-                //      this.warn("generate_image call missing 'image_prompt' argument")
-                // }
+                } else {
+                     this.warn("generate_image call missing 'image_prompt' argument")
+                }
                 break
             // Add other function cases here if needed
             default:

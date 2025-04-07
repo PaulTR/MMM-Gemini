@@ -125,16 +125,16 @@ module.exports = NodeHelper.create({
                         this.warn(JSON.stringify(e, null, 2))
                         
                         const wasOpen = this.connectionOpen
-                        this.audioQueue = []
-                        this.stopRecording(true)
-                        this.closePersistentSpeaker() // Close speaker on close
                         
                         if (wasOpen) {
                             this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Closed Unexpectedly. Retrying...` })
                         } else { this.log("Live Connection closed normally") }
 
-                        this.applyDefaultState()
-                        await this.initialize(this.apiKey)
+                        this.audioQueue = []
+                        this.stopRecording(true)
+                        this.closePersistentSpeaker() // Close speaker on close
+                        // this.applyDefaultState()
+                        // await this.initialize(this.apiKey)
                     },
                 },
                 

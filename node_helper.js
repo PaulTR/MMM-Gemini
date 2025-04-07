@@ -146,7 +146,7 @@ module.exports = NodeHelper.create({
                 },
                 
                 config: {
-                    responseModalities: [Modality.TEXT],
+                    responseModalities: [Modality.AUDIO],
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities. When telling a story or something that can be enhanced by visual effects, generate a detailed prompt for the generate_image function and call it.' }],
                     },

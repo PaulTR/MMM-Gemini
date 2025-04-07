@@ -50,7 +50,7 @@ module.exports = NodeHelper.create({
         this.apiInitialized = false
         this.connectionOpen = false
         this.apiInitializing = false
-        
+        this.closePersistentSpeaker()
         // this.imaGenAI = null
     },
 
@@ -91,10 +91,6 @@ module.exports = NodeHelper.create({
             this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`)
             this.log(`Step 3: Attempting to establish Live Connection with ${GEMINI_MODEL}...`)
 
-            this.processingQueue = false
-            this.audioQueue = []       
-            this.closePersistentSpeaker() 
-
             this.liveSession = await this.genAI.live.connect({
                 model: GEMINI_MODEL,
                 callbacks: {
@@ -133,8 +129,8 @@ module.exports = NodeHelper.create({
                         this.audioQueue = []
                         this.stopRecording(true)
                         this.closePersistentSpeaker() // Close speaker on close
-                        // this.applyDefaultState()
-                        // await this.initialize(this.apiKey)
+                        this.applyDefaultState()
+                        await this.initialize(this.apiKey)
                     },
                 },
                 

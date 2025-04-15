@@ -12,10 +12,11 @@ const AUDIO_TYPE = 'raw' // Gemini Live API uses raw data streams
 const ENCODING = 'signed-integer'
 const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
+const GEMINI_SESSION_HANDLE = "magic_mirror"
 
 
-const GEMINI_MODEL = 'gemini-2.0-flash-exp'
-const API_VERSION = 'v1alpha'
+const GEMINI_MODEL = 'gemini-2.0-flash-live-001'
+// const API_VERSION = 'v1alpha'
 
 const DEFAULT_PLAYBACK_THRESHOLD = 1 // Start playing after receiving this many chunks
 
@@ -74,7 +75,7 @@ module.exports = NodeHelper.create({
 
         this.apiKey = apiKey
         this.apiInitializing = true
-        this.log(`Initializing GoogleGenAI for ${API_VERSION}...`)
+        this.log(`Initializing GoogleGenAI...`)
 
         try {
             this.sendToFrontend("INITIALIZING")
@@ -82,14 +83,14 @@ module.exports = NodeHelper.create({
 
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
-                httpOptions: { 'apiVersion': API_VERSION }
+                // httpOptions: { 'apiVersion': API_VERSION }
             })
 
             this.imaGenAI = new GoogleGenAI({
                 apiKey: this.apiKey,
             })
 
-            this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`)
+            this.log(`Step 2: GoogleGenAI instance created.`)
             this.log(`Step 3: Attempting to establish Live Connection with ${GEMINI_MODEL}...`)
 
             this.liveSession = await this.genAI.live.connect({
@@ -137,6 +138,18 @@ module.exports = NodeHelper.create({
                 
                 config: {
                     responseModalities: [Modality.AUDIO],
+                    sessionResumption: { // https://googleapis.github.io/js-genai/main/interfaces/types.SessionResumptionConfig.html
+                        handle: GEMINI_SESSION_HANDLE,
+                        transparent: true,
+                    },
+                    speechConfig: {
+                        // languageCode: "fr-FR",
+                        voiceConfig: {
+                            prebuiltVoiceConfig: {
+                                voiceName: "Puck",
+                            },
+                        },
+                    },
                     systemInstruction: {
                         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                     },
@@ -150,7 +163,7 @@ module.exports = NodeHelper.create({
                         functionDeclarations: [
                             {
                                 name: "generate_image",
-                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror",
+                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror. RESPOND IN THE INPUT AUDIO LANGUAGE FROM THE SPEAKER IF YOU DETECT NON ENGLISH LANGUAGE. YOU MUST RESPOND UNMISTAKABLY IN THE LANGUAGE THAT THE SPEAKER INPUTS VIA AUDIO.",
                                 parameters: {
                                     type: Type.OBJECT,
                                     description: "This object will contain a generated prompt for generating a new image through the Gemini API",

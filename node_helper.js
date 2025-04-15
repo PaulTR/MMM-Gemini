@@ -146,7 +146,7 @@ module.exports = NodeHelper.create({
                         // languageCode: "fr-FR",
                         voiceConfig: {
                             prebuiltVoiceConfig: {
-                                voiceName: "Fenrir",
+                                voiceName: "Puck",
                             },
                         },
                     },
@@ -163,7 +163,7 @@ module.exports = NodeHelper.create({
                         functionDeclarations: [
                             {
                                 name: "generate_image",
-                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror",
+                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror. RESPOND IN THE INPUT AUDIO LANGUAGE FROM THE SPEAKER IF YOU DETECT NON ENGLISH LANGUAGE. YOU MUST RESPOND UNMISTAKABLY IN THE LANGUAGE THAT THE SPEAKER INPUTS VIA AUDIO.",
                                 parameters: {
                                     type: Type.OBJECT,
                                     description: "This object will contain a generated prompt for generating a new image through the Gemini API",

@@ -14,7 +14,7 @@ const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
 
 
-const GEMINI_MODEL = 'gemini-2.0-flash-lite'
+const GEMINI_MODEL = 'gemini-2.0-flash-lite-001'
 // const API_VERSION = 'v1alpha'
 
 const DEFAULT_PLAYBACK_THRESHOLD = 1 // Start playing after receiving this many chunks

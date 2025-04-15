@@ -449,7 +449,7 @@ module.exports = NodeHelper.create({
                     this.sendToFrontend("GEMINI_IMAGE_GENERATING")
                     try {
                         const response = await this.imaGenAI.models.generateImages({
-                            model: 'imagen-3.0-generate-002', // Consider making model configurable
+                            model: 'gemini-2.0-flash-live-001', // Consider making model configurable
                             prompt: generateImagePrompt,
                             config: {
                                 numberOfImages: 1,

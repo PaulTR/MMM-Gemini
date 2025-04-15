@@ -14,8 +14,8 @@ const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
 
 
-const GEMINI_MODEL = 'gemini-2.0-flash-exp'
-const API_VERSION = 'v1alpha'
+const GEMINI_MODEL = 'gemini-2.0-flash-lite'
+// const API_VERSION = 'v1alpha'
 
 const DEFAULT_PLAYBACK_THRESHOLD = 1 // Start playing after receiving this many chunks
 
@@ -74,7 +74,7 @@ module.exports = NodeHelper.create({
 
         this.apiKey = apiKey
         this.apiInitializing = true
-        this.log(`Initializing GoogleGenAI for ${API_VERSION}...`)
+        this.log(`Initializing GoogleGenAI...`)
 
         try {
             this.sendToFrontend("INITIALIZING")
@@ -82,14 +82,14 @@ module.exports = NodeHelper.create({
 
             this.genAI = new GoogleGenAI({
                 apiKey: this.apiKey,
-                httpOptions: { 'apiVersion': API_VERSION }
+                // httpOptions: { 'apiVersion': API_VERSION }
             })
 
             this.imaGenAI = new GoogleGenAI({
                 apiKey: this.apiKey,
             })
 
-            this.log(`Step 2: GoogleGenAI instance created. API Version: ${API_VERSION}`)
+            this.log(`Step 2: GoogleGenAI instance created.`)
             this.log(`Step 3: Attempting to establish Live Connection with ${GEMINI_MODEL}...`)
 
             this.liveSession = await this.genAI.live.connect({

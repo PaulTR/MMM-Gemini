@@ -137,17 +137,17 @@ module.exports = NodeHelper.create({
                 //         handle: GEMINI_SESSION_HANDLE,
                 //         transparent: true,
                 //     },
-                //     speechConfig: {
-                //         // languageCode: "fr-FR",
-                //         voiceConfig: {
-                //             prebuiltVoiceConfig: {
-                //                 voiceName: "Puck",
-                //             },
-                //         },
-                //     },
-                //     systemInstruction: {
-                //         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
-                //     },
+                    speechConfig: {
+                        // languageCode: "fr-FR",
+                        voiceConfig: {
+                            prebuiltVoiceConfig: {
+                                voiceName: "Aoede",
+                            },
+                        },
+                    },
+                    systemInstruction: {
+                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
+                    },
                     tools: [{
                         googleSearch: {},
                         googleSearchRetrieval: {

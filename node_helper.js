@@ -498,6 +498,7 @@ module.exports = NodeHelper.create({
     // },
 
     async handleGeminiResponse(message) {
+        this.log("message: " + JSON.stringify(message))
         if (message?.setupComplete) { return } // Ignore setup message
 
     //     // Handle the interrupt flag

@@ -133,7 +133,7 @@ module.exports = NodeHelper.create({
                 },
                 
                 config: {
-                    responseModalities: [Modality.AUDIO],
+                    responseModalities: [Modality.TEXT],
                 //     sessionResumption: { // https://googleapis.github.io/js-genai/main/interfaces/types.SessionResumptionConfig.html
                 //         handle: GEMINI_SESSION_HANDLE,
                 //         transparent: true,
@@ -498,7 +498,6 @@ module.exports = NodeHelper.create({
     // },
 
     async handleGeminiResponse(message) {
-        this.log("message: " + JSON.stringify(message))
         if (message?.setupComplete) { return } // Ignore setup message
 
     //     // Handle the interrupt flag

@@ -52,7 +52,6 @@ module.exports = NodeHelper.create({
         this.imaGenAI = null
     },
 
-    // // Initialize Google GenAI (currently removed for testing, but works. Need a dedicated genai connection for image gen since live with v1alpha wasn't generating images) and Live Connection
     async initialize(apiKey) {
         this.log(">>> initialize called")
 
@@ -83,9 +82,9 @@ module.exports = NodeHelper.create({
                 // httpOptions: { 'apiVersion': API_VERSION }
             })
 
-    //         this.imaGenAI = new GoogleGenAI({
-    //             apiKey: this.apiKey,
-    //         })
+            this.imaGenAI = new GoogleGenAI({
+                apiKey: this.apiKey,
+            })
 
             this.log(`Step 2: GoogleGenAI instance created.`)
             this.log(`Step 3: Attempting to establish Live Connection with ${GEMINI_MODEL}...`)
@@ -149,31 +148,31 @@ module.exports = NodeHelper.create({
                 //     systemInstruction: {
                 //         parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
                 //     },
-                //     tools: [{
-                //         googleSearch: {},
-                //         googleSearchRetrieval: {
-                //             dynamicRetrievalConfig: {
-                //                 mode: DynamicRetrievalConfigMode.MODE_DYNAMIC,
-                //             }
-                //         },
-                //         functionDeclarations: [
-                //             {
-                //                 name: "generate_image",
-                //                 description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror. RESPOND IN THE INPUT AUDIO LANGUAGE FROM THE SPEAKER IF YOU DETECT NON ENGLISH LANGUAGE. YOU MUST RESPOND UNMISTAKABLY IN THE LANGUAGE THAT THE SPEAKER INPUTS VIA AUDIO.",
-                //                 parameters: {
-                //                     type: Type.OBJECT,
-                //                     description: "This object will contain a generated prompt for generating a new image through the Gemini API",
-                //                     properties: {
-                //                         image_prompt: {
-                //                             type: Type.STRING,
-                //                             description: "A prompt that should be used with image generation to create an image requested by the user using Gemini. Be as detailed as necessary."
-                //                         },
-                //                     },
-                //                 },
-                //                 requierd: ['image_prompt'],
-                //             },
-                //         ]
-                //     }]
+                    tools: [{
+                        googleSearch: {},
+                        googleSearchRetrieval: {
+                            dynamicRetrievalConfig: {
+                                mode: DynamicRetrievalConfigMode.MODE_DYNAMIC,
+                            }
+                        },
+                        functionDeclarations: [
+                            {
+                                name: "generate_image",
+                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror. RESPOND IN THE INPUT AUDIO LANGUAGE FROM THE SPEAKER IF YOU DETECT NON ENGLISH LANGUAGE. YOU MUST RESPOND UNMISTAKABLY IN THE LANGUAGE THAT THE SPEAKER INPUTS VIA AUDIO.",
+                                parameters: {
+                                    type: Type.OBJECT,
+                                    description: "This object will contain a generated prompt for generating a new image through the Gemini API",
+                                    properties: {
+                                        image_prompt: {
+                                            type: Type.STRING,
+                                            description: "A prompt that should be used with image generation to create an image requested by the user using Gemini. Be as detailed as necessary."
+                                        },
+                                    },
+                                },
+                                required: ['image_prompt'],
+                            },
+                        ]
+                    }]
                 },
             })
             this.log(`Step 4: live.connect call initiated...`)
@@ -439,63 +438,63 @@ module.exports = NodeHelper.create({
         }
     },
 
-    // // Handle function calls requested by Gemini
-    // async handleFunctionCall(functioncall) {
-    //     let functionName = functioncall.name
-    //     let args = functioncall.args
+    // Handle function calls requested by Gemini
+    async handleFunctionCall(functioncall) {
+        let functionName = functioncall.name
+        let args = functioncall.args
 
-    //     if(!functionName || !args) {
-    //         this.warn("Received function call without name or arguments:", functioncall)
-    //         return
-    //     }
+        if(!functionName || !args) {
+            this.warn("Received function call without name or arguments:", functioncall)
+            return
+        }
 
-    //     this.log(`Handling function call: ${functionName}`)
+        this.log(`Handling function call: ${functionName}`)
 
-    //     switch(functionName) {
-    //         case "generate_image":
-    //             let generateImagePrompt = args.image_prompt
-    //             if (generateImagePrompt) {
-    //                 this.log(`Generating image with prompt: "${generateImagePrompt}"`)
-    //                 this.sendToFrontend("GEMINI_IMAGE_GENERATING")
-    //                 try {
-    //                     const response = await this.imaGenAI.models.generateImages({
-    //                         model: 'imagen-3.0-generate-002', // Consider making model configurable
-    //                         prompt: generateImagePrompt,
-    //                         config: {
-    //                             numberOfImages: 1,
-    //                             includeRaiReason: true,
-    //                             // personGeneration: PersonGeneration.ALLOW_ADULT, // Uncomment if needed
-    //                         },
-    //                     })
+        switch(functionName) {
+            case "generate_image":
+                let generateImagePrompt = args.image_prompt
+                if (generateImagePrompt) {
+                    this.log(`Generating image with prompt: "${generateImagePrompt}"`)
+                    this.sendToFrontend("GEMINI_IMAGE_GENERATING")
+                    try {
+                        const response = await this.imaGenAI.models.generateImages({
+                            model: 'imagen-3.0-generate-002', // Consider making model configurable
+                            prompt: generateImagePrompt,
+                            config: {
+                                numberOfImages: 1,
+                                includeRaiReason: true,
+                                personGeneration: PersonGeneration.ALLOW_ADULT,
+                            },
+                        })
 
-    //                     // Handle potential safety flags/RAI reasons
-    //                     if (response?.generatedImages?.[0]?.raiReason) {
-    //                          this.warn(`Image generation flagged for RAI reason: ${response.generatedImages[0].raiReason}`)
-    //                          this.sendToFrontend("GEMINI_IMAGE_BLOCKED", { reason: response.generatedImages[0].raiReason })
-    //                     } else {
-    //                         let imageBytes = response?.generatedImages?.[0]?.image?.imageBytes
-    //                         if (imageBytes) {
-    //                             this.log("Image generated successfully")
-    //                             this.sendToFrontend("GEMINI_IMAGE_GENERATED", { image: imageBytes })
-    //                         } else {
-    //                             this.error("Image generation response received, but no image bytes found")
-    //                             this.sendToFrontend("HELPER_ERROR", { error: "Image generation failed: No image data" })
-    //                         }
-    //                     }
-    //                 } catch (imageError) {
-    //                      this.error("Error during image generation API call:", imageError)
-    //                      this.sendToFrontend("HELPER_ERROR", { error: `Image generation failed: ${imageError.message}` })
-    //                 }
+                        // Handle potential safety flags/RAI reasons
+                        if (response?.generatedImages?.[0]?.raiReason) {
+                             this.warn(`Image generation flagged for RAI reason: ${response.generatedImages[0].raiReason}`)
+                             this.sendToFrontend("GEMINI_IMAGE_BLOCKED", { reason: response.generatedImages[0].raiReason })
+                        } else {
+                            let imageBytes = response?.generatedImages?.[0]?.image?.imageBytes
+                            if (imageBytes) {
+                                this.log("Image generated successfully")
+                                this.sendToFrontend("GEMINI_IMAGE_GENERATED", { image: imageBytes })
+                            } else {
+                                this.error("Image generation response received, but no image bytes found")
+                                this.sendToFrontend("HELPER_ERROR", { error: "Image generation failed: No image data" })
+                            }
+                        }
+                    } catch (imageError) {
+                         this.error("Error during image generation API call:", imageError)
+                         this.sendToFrontend("HELPER_ERROR", { error: `Image generation failed: ${imageError.message}` })
+                    }
 
-    //             } else {
-    //                  this.warn("generate_image call missing 'image_prompt' argument")
-    //             }
-    //             break
-    //         // Add other function cases here if needed
-    //         default:
-    //             this.warn(`Received unhandled function call: ${functionName}`)
-    //     }
-    // },
+                } else {
+                     this.warn("generate_image call missing 'image_prompt' argument")
+                }
+                break
+            // Add other function cases here if needed
+            default:
+                this.warn(`Received unhandled function call: ${functionName}`)
+        }
+    },
 
     async handleGeminiResponse(message) {
         if (message?.setupComplete) { return } // Ignore setup message
@@ -510,7 +509,6 @@ module.exports = NodeHelper.create({
         }
 
         let content = message?.serverContent?.modelTurn?.parts?.[0]
-    //     let functioncall = message?.toolCall?.functionCalls?.[0]
 
         // Handle Text
         if (content?.text) {
@@ -530,10 +528,11 @@ module.exports = NodeHelper.create({
             }
         }
 
-    //     // Handle Function Calls
-    //     if (functioncall) {
-    //         await this.handleFunctionCall(functioncall)
-    //     }
+        let functioncall = message?.toolCall?.functionCalls?.[0]
+        // Handle Function Calls
+        if (functioncall) {
+            await this.handleFunctionCall(functioncall)
+        }
 
         // Check for Turn Completion (LOGGING ONLY when audio, clearing UI in text)
         if (message?.serverContent?.turnComplete) {

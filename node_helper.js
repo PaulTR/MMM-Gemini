@@ -518,17 +518,17 @@ module.exports = NodeHelper.create({
             this.sendToFrontend("GEMINI_TEXT_RESPONSE", { text: content.text })
         }
 
-    //     // Extract and Queue Audio Data
-    //     let extractedAudioData = content?.inlineData?.data
-    //     if (extractedAudioData) {
-    //         this.audioQueue.push(extractedAudioData)
+        // Extract and Queue Audio Data
+        let extractedAudioData = content?.inlineData?.data
+        if (extractedAudioData) {
+            this.audioQueue.push(extractedAudioData)
 
-    //         // --- Trigger Playback if Threshold Reached and Not Already Playing ---
-    //         if (!this.processingQueue) {
-    //             this.log(`Starting playback`)
-    //             this.processQueue(false) // Start the playback loop
-    //         }
-    //     }
+            // --- Trigger Playback if Threshold Reached and Not Already Playing ---
+            if (!this.processingQueue) {
+                this.log(`Starting playback`)
+                this.processQueue(false) // Start the playback loop
+            }
+        }
 
     //     // Handle Function Calls
     //     if (functioncall) {

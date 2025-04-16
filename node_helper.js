@@ -133,10 +133,10 @@ module.exports = NodeHelper.create({
                 
                 config: {
                     responseModalities: [Modality.AUDIO],
-                //     sessionResumption: { // https://googleapis.github.io/js-genai/main/interfaces/types.SessionResumptionConfig.html
-                //         handle: GEMINI_SESSION_HANDLE,
-                //         transparent: true,
-                //     },
+                    sessionResumption: {
+                        handle: GEMINI_SESSION_HANDLE,
+                        transparent: true,
+                    },
                     speechConfig: {
                         languageCode: "fr-FR",
                         voiceConfig: {
@@ -146,7 +146,7 @@ module.exports = NodeHelper.create({
                         },
                     },
                     systemInstruction: {
-                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
+                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities. When you break from a story to show an image from the story, please continue telling the story after calling the function. You should also try to continue with stories without user input where possible - you are the all knowing mirror, amaze the viewer with your knowledge of tales.' }],
                     },
                     tools: [{
                         googleSearch: {},

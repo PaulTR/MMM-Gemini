@@ -138,10 +138,10 @@ module.exports = NodeHelper.create({
                         transparent: true,
                     },
                     speechConfig: {
-                        languageCode: "fr-FR",
+                        // languageCode: "fr-FR",
                         voiceConfig: {
                             prebuiltVoiceConfig: {
-                                voiceName: "Aoede",
+                                voiceName: "Puck",
                             },
                         },
                     },

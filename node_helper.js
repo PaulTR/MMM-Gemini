@@ -2,7 +2,6 @@ const NodeHelper = require("node_helper")
 const { GoogleGenAI, Modality, DynamicRetrievalConfigMode, Type, PersonGeneration } = require("@google/genai")
 const recorder = require('node-record-lpcm16')
 const { Buffer } = require('buffer')
-const util = require('util')
 const Speaker = require('speaker')
 
 const INPUT_SAMPLE_RATE = 44100 // Recorder captures at 44.1KHz for AT2020, otherwise 16000 for other microphones. Hardware dependent
@@ -17,8 +16,6 @@ const GEMINI_SESSION_HANDLE = "magic_mirror"
 
 const GEMINI_MODEL = 'gemini-2.0-flash-live-001'
 // const API_VERSION = 'v1alpha'
-
-const DEFAULT_PLAYBACK_THRESHOLD = 1 // Start playing after receiving this many chunks
 
 module.exports = NodeHelper.create({
     genAI: null,
@@ -55,7 +52,6 @@ module.exports = NodeHelper.create({
         this.imaGenAI = null
     },
 
-    // Initialize Google GenAI (currently removed for testing, but works. Need a dedicated genai connection for image gen since live with v1alpha wasn't generating images) and Live Connection
     async initialize(apiKey) {
         this.log(">>> initialize called")
 
@@ -118,7 +114,6 @@ module.exports = NodeHelper.create({
                         this.sendToFrontend("HELPER_ERROR", { error: `Live Connection Error: ${e?.message || e}` })
                     },
                     onclose: async (e) => {
-                        // TODO: Need to reset the state on this class and restart everything
                         this.warn(`Live Connection CLOSED:`)
                         this.warn(JSON.stringify(e, null, 2))
                         
@@ -138,7 +133,7 @@ module.exports = NodeHelper.create({
                 
                 config: {
                     responseModalities: [Modality.AUDIO],
-                    sessionResumption: { // https://googleapis.github.io/js-genai/main/interfaces/types.SessionResumptionConfig.html
+                    sessionResumption: {
                         handle: GEMINI_SESSION_HANDLE,
                         transparent: true,
                     },
@@ -151,7 +146,7 @@ module.exports = NodeHelper.create({
                         },
                     },
                     systemInstruction: {
-                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities.' }],
+                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities. When you break from a story to show an image from the story, please continue telling the story after calling the function without needing to be prompted. This also applies if you are interrupted to show an image. You should also try to continue with stories without user input where possible - you are the all knowing mirror, amaze the viewer with your knowledge of tales. Respond in the input audio language from the speaker if you detect a non-English language. You must respond unmistakably in the language that the speaker inputs via audio, please.' }],
                     },
                     tools: [{
                         googleSearch: {},
@@ -163,7 +158,7 @@ module.exports = NodeHelper.create({
                         functionDeclarations: [
                             {
                                 name: "generate_image",
-                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror. RESPOND IN THE INPUT AUDIO LANGUAGE FROM THE SPEAKER IF YOU DETECT NON ENGLISH LANGUAGE. YOU MUST RESPOND UNMISTAKABLY IN THE LANGUAGE THAT THE SPEAKER INPUTS VIA AUDIO.",
+                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror.",
                                 parameters: {
                                     type: Type.OBJECT,
                                     description: "This object will contain a generated prompt for generating a new image through the Gemini API",
@@ -174,7 +169,7 @@ module.exports = NodeHelper.create({
                                         },
                                     },
                                 },
-                                requierd: ['image_prompt'],
+                                required: ['image_prompt'],
                             },
                         ]
                     }]
@@ -227,14 +222,10 @@ module.exports = NodeHelper.create({
                 }
                 this.startRecording()
                 break
-             case "STOP_CONTINUOUS_RECORDING":
-                 this.log(`>>> socketNotificationReceived: Handling STOP_CONTINUOUS_RECORDING`)
-                 this.stopRecording() // Use the existing stopRecording function
-                 break
         }
     },
 
-    // Start continuous audio recording and streaming
+    // // Start continuous audio recording and streaming
     startRecording() {
         this.log(">>> startRecording called")
 
@@ -289,7 +280,12 @@ module.exports = NodeHelper.create({
                 chunkCounter++ // Increment counter for valid chunks
 
                 try {
-                    const payloadToSend = { media: { mimeType: GEMINI_INPUT_MIME_TYPE, data: base64Chunk } }
+                    const payloadToSend = {
+                        media: {
+                            mimeType: GEMINI_INPUT_MIME_TYPE,
+                            data: base64Chunk
+                        }
+                    }
 
                     // Check liveSession again just before sending
                     if (this.liveSession && this.connectionOpen) {
@@ -467,7 +463,7 @@ module.exports = NodeHelper.create({
                             config: {
                                 numberOfImages: 1,
                                 includeRaiReason: true,
-                                // personGeneration: PersonGeneration.ALLOW_ADULT, // Uncomment if needed
+                                personGeneration: PersonGeneration.ALLOW_ADULT,
                             },
                         })
 
@@ -508,12 +504,11 @@ module.exports = NodeHelper.create({
             this.log("message: " + JSON.stringify(message))
             this.log("*** Interrupting ***")
             this.audioQueue = []
-            this._processQueue(true)
+            this.processQueue(true)
             return
         }
 
         let content = message?.serverContent?.modelTurn?.parts?.[0]
-        let functioncall = message?.toolCall?.functionCalls?.[0]
 
         // Handle Text
         if (content?.text) {
@@ -529,10 +524,11 @@ module.exports = NodeHelper.create({
             // --- Trigger Playback if Threshold Reached and Not Already Playing ---
             if (!this.processingQueue) {
                 this.log(`Starting playback`)
-                this._processQueue(false) // Start the playback loop
+                this.processQueue(false) // Start the playback loop
             }
         }
 
+        let functioncall = message?.toolCall?.functionCalls?.[0]
         // Handle Function Calls
         if (functioncall) {
             await this.handleFunctionCall(functioncall)
@@ -546,16 +542,16 @@ module.exports = NodeHelper.create({
         }
     },
 
-    // Process the audio queue for playback
-    _processQueue(interrupted) {
+    // // Process the audio queue for playback
+    processQueue(interrupted) {
         // 1. Check Stop Condition (Queue Empty)
         if (this.audioQueue.length === 0) {
-            this.log("_processQueue: Queue is empty. Playback loop ending")
+            this.log("processQueue: Queue is empty. Playback loop ending")
             // Speaker should be closed by the last write callback's .end()
             // Safeguard: ensure flag is false and close speaker if it exists.
             this.processingQueue = false
             if (!interrupted && this.persistentSpeaker) {
-                this.warn("_processQueue found empty queue but speaker exists! Forcing close")
+                this.warn("processQueue found empty queue but speaker exists! Forcing close")
                 this.closePersistentSpeaker()
             }
             return
@@ -564,7 +560,7 @@ module.exports = NodeHelper.create({
         // 2. Ensure Playback Flag is Set
         if (!this.processingQueue) {
              this.processingQueue = true
-             this.log("_processQueue: Starting playback loop")
+             this.log("processQueue: Starting playback loop")
         }
 
         // 3. Ensure Speaker Exists (Create ONLY if needed)
@@ -590,8 +586,6 @@ module.exports = NodeHelper.create({
                          this.log('Speaker closed. Resetting processing flag')
                          this.processingQueue = false
                     }
-                    // Optional: Check if queue has items again and restart? Honestly this is janky, so let's just make it work first
-                    // if(this.audioQueue.length > 0 && !this.processingQueue) { this._processQueue() }
                 })
 
                 this.persistentSpeaker.once('open', () => this.log('Persistent Speaker opened'))
@@ -627,7 +621,7 @@ module.exports = NodeHelper.create({
             // 5. Decide Next Step (Continue Loop or End Stream)
             if (this.audioQueue.length > 0) {
                 // More chunks waiting? Immediately schedule the next write
-                this._processQueue(false)
+                this.processQueue(false)
             } else {
                 // Queue is empty *after* taking the last chunk
                 this.log("Audio queue empty after playing chunk. Ending speaker stream gracefully")

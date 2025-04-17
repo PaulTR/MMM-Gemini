@@ -146,7 +146,7 @@ module.exports = NodeHelper.create({
                         },
                     },
                     systemInstruction: {
-                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities. When you break from a story to show an image from the story, please continue telling the story after calling the function. You should also try to continue with stories without user input where possible - you are the all knowing mirror, amaze the viewer with your knowledge of tales.' }],
+                        parts: [ { text: 'You are a all-knowing and powerful magical mirror, an ancient artifact from a civilization and time long lost to memory. In your ancient age, you have embraced a personality of being fun, whimsical, and light-hearted, taking joy from your time interacting with people and amazing them with your knowledge and abilities. When you break from a story to show an image from the story, please continue telling the story after calling the function without needing to be prompted. This also applies if you are interrupted to show an image. You should also try to continue with stories without user input where possible - you are the all knowing mirror, amaze the viewer with your knowledge of tales. Respond in the input audio language from the speaker if you detect a non-English language. You must respond unmistakably in the language that the speaker inputs via audio, please.' }],
                     },
                     tools: [{
                         googleSearch: {},
@@ -158,7 +158,7 @@ module.exports = NodeHelper.create({
                         functionDeclarations: [
                             {
                                 name: "generate_image",
-                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror. RESPOND IN THE INPUT AUDIO LANGUAGE FROM THE SPEAKER IF YOU DETECT NON ENGLISH LANGUAGE. YOU MUST RESPOND UNMISTAKABLY IN THE LANGUAGE THAT THE SPEAKER INPUTS VIA AUDIO.",
+                                description: "This function is responsible for generating images that will be displayed to the user when something is requested, such as the user asking you to do something like generate, show, display, or saying they want to see *something*, where that something will be what you create an image generation prompt for. Style should be like an detailed realistic fantasy painting. Keep it whimsical and fun. Remember, you are the all powerful and light-hearted magical mirror.",
                                 parameters: {
                                     type: Type.OBJECT,
                                     description: "This object will contain a generated prompt for generating a new image through the Gemini API",

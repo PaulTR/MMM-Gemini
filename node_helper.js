@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 const NodeHelper = require("node_helper")
-const { GoogleGenAI, Modality, DynamicRetrievalConfigMode, Type, PersonGeneration } = require("@google/genai")
+const { GoogleGenAI, Modality, DynamicRetrievalConfigMode, Type, PersonGeneration, StartSensitivity } = require("@google/genai")
 const recorder = require('node-record-lpcm16')
 const { Buffer } = require('buffer')
 const Speaker = require('speaker')
@@ -148,6 +148,11 @@ module.exports = NodeHelper.create({
                 
                 config: {
                     responseModalities: [Modality.AUDIO],
+                    realtimeInputConfig: {
+                        automaticActivityDetection: {
+                            startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW
+                        },
+                    },
                     sessionResumption: {
                         handle: GEMINI_SESSION_HANDLE,
                         transparent: true,

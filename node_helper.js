@@ -150,7 +150,7 @@ module.exports = NodeHelper.create({
                     responseModalities: [Modality.AUDIO],
                     realtimeInputConfig: {
                         automaticActivityDetection: {
-                            startOfSpeechSensitivity: 'START_SENSITIVITY_LOW'
+                            // startOfSpeechSensitivity: 'START_SENSITIVITY_LOW'
                         },
                     },
                     sessionResumption: {

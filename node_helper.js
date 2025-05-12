@@ -148,11 +148,11 @@ module.exports = NodeHelper.create({
                 
                 config: {
                     responseModalities: [Modality.AUDIO],
-                    realtimeInputConfig: {
-                        automaticActivityDetection: {
-                            // startOfSpeechSensitivity: 'START_SENSITIVITY_LOW'
-                        },
-                    },
+                    // realtimeInputConfig: {
+                    //     automaticActivityDetection: {
+                    //         startOfSpeechSensitivity: 'START_SENSITIVITY_LOW'
+                    //     },
+                    // },
                     sessionResumption: {
                         handle: GEMINI_SESSION_HANDLE,
                         transparent: true,

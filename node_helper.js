@@ -18,7 +18,6 @@ const { GoogleGenAI, Modality, DynamicRetrievalConfigMode, Type, PersonGeneratio
 const recorder = require('node-record-lpcm16')
 const { Buffer } = require('buffer')
 const Speaker = require('speaker')
-const http = require('http') // Import http module for simple control server
 
 const INPUT_SAMPLE_RATE = 44100 // Recorder captures at 44.1KHz for AT2020, otherwise 16000 for other microphones. Hardware dependent
 const OUTPUT_SAMPLE_RATE = 24000 // Gemini outputs at 24kHz
@@ -29,10 +28,9 @@ const BITS = 16
 const GEMINI_INPUT_MIME_TYPE = `audio/pcm;rate=${INPUT_SAMPLE_RATE}`
 const GEMINI_SESSION_HANDLE = "magic_mirror"
 
+
 const GEMINI_MODEL = 'gemini-2.0-flash-live-001'
 // const API_VERSION = 'v1alpha'
-
-const CONTROL_SERVER_PORT = 3000; // Define a port for your control server
 
 module.exports = NodeHelper.create({
     genAI: null,
@@ -47,7 +45,6 @@ module.exports = NodeHelper.create({
     connectionOpen: false,
     apiInitializing: false,
     imaGenAI: null,
-    isMicrophonePresent: true, // New state variable
 
     // Logger functions
     log: function(...args) { console.log(`[${new Date().toISOString()}] LOG (${this.name}):`, ...args) },
@@ -68,68 +65,10 @@ module.exports = NodeHelper.create({
         this.apiInitializing = false
         this.closePersistentSpeaker()
         this.imaGenAI = null
-        this.isMicrophonePresent = true // Reset to true by default, assumes mic is present on start
-    },
-
-    // New: Setup a small HTTP server for external control
-    startControlServer() {
-        this.controlServer = http.createServer(async (req, res) => {
-            if (req.method === 'POST' && req.url === '/microphone/unplugged') {
-                this.log("Received microphone unplugged signal from control server.");
-                this.handleMicrophoneUnplugged();
-                res.writeHead(200, { 'Content-Type': 'text/plain' });
-                res.end('Microphone unplugged signal received.\n');
-            } else if (req.method === 'POST' && req.url === '/microphone/plugged') {
-                this.log("Received microphone plugged signal from control server.");
-                this.handleMicrophonePlugged();
-                res.writeHead(200, { 'Content-Type': 'text/plain' });
-                res.end('Microphone plugged signal received.\n');
-            } else {
-                res.writeHead(404, { 'Content-Type': 'text/plain' });
-                res.end('Not Found\n');
-            }
-        });
-
-        this.controlServer.listen(CONTROL_SERVER_PORT, () => {
-            this.log(`Control server listening on port ${CONTROL_SERVER_PORT}`);
-        });
-
-        this.controlServer.on('error', (e) => {
-            this.error(`Control server error: ${e.message}`);
-        });
-    },
-
-    handleMicrophoneUnplugged() {
-        if (this.isMicrophonePresent) {
-            this.isMicrophonePresent = false;
-            this.warn("Microphone detected as unplugged. Stopping recording.");
-            this.stopRecording(true); // Force stop immediately
-            this.sendToFrontend("MICROPHONE_STATUS", { present: false });
-        }
-    },
-
-    handleMicrophonePlugged() {
-        if (!this.isMicrophonePresent) {
-            this.isMicrophonePresent = true;
-            this.log("Microphone detected as plugged. Attempting to restart recording if needed.");
-            this.sendToFrontend("MICROPHONE_STATUS", { present: true });
-            // If you want to automatically restart recording when plugged in,
-            // you might need to trigger a START_CONTINUOUS_RECORDING event
-            // or call startRecording() directly, but ensure the API is ready.
-            if (this.connectionOpen && this.apiInitialized && !this.isRecording) {
-                this.log("Microphone plugged and API ready. Attempting to restart recording.");
-                this.startRecording();
-            }
-        }
     },
 
     async initialize(apiKey) {
         this.log(">>> initialize called")
-
-        // Initialize control server on module load
-        if (!this.controlServer) {
-            this.startControlServer();
-        }
 
         if (this.apiInitialized || this.apiInitializing) {
             this.warn(`API initialization already complete or in progress. Initialized: ${this.apiInitialized}, Initializing: ${this.apiInitializing}`)
@@ -297,22 +236,12 @@ module.exports = NodeHelper.create({
                     }
                     return
                 }
-                // Only start recording if the microphone is detected as present
-                if (!this.isMicrophonePresent) {
-                    this.warn("Cannot start recording: Microphone is not detected as present.");
-                    this.sendToFrontend("HELPER_ERROR", { error: "Cannot record: Microphone not present." });
-                    return;
-                }
                 if (this.isRecording) {
                     this.warn(`Already recording. Ignoring START_CONTINUOUS_RECORDING request`)
                     return
                 }
                 this.startRecording()
-                break;
-            // Add a case for handling explicit stop requests from the frontend if you have one
-            // case "STOP_RECORDING":
-            //     this.stopRecording(false); // Not forced, graceful stop
-            //     break;
+                break
         }
     },
 
@@ -329,13 +258,6 @@ module.exports = NodeHelper.create({
              this.sendToFrontend("HELPER_ERROR", { error: "Cannot start recording: API connection not open" })
              return
         }
-        // Crucial: Check if microphone is present before starting
-        if (!this.isMicrophonePresent) {
-            this.warn("Cannot start recording: Microphone not detected as present.");
-            this.sendToFrontend("HELPER_ERROR", { error: "Cannot start recording: Microphone not present." });
-            return;
-        }
-
 
         this.isRecording = true
         this.log(">>> startRecording: Sending RECORDING_STARTED to frontend")
@@ -362,14 +284,11 @@ module.exports = NodeHelper.create({
             let chunkCounter = 0 // Reset counter for new recording session
 
             audioStream.on('data', async (chunk) => {
-                // Add a check for isMicrophonePresent here as well
-                if (!this.isRecording || !this.connectionOpen || !this.liveSession || !this.isMicrophonePresent) {
-                    if (this.isRecording && !this.isMicrophonePresent) {
-                        this.warn(`Recording stopping mid-stream: Microphone unplugged...`)
-                    } else if (this.isRecording) {
+                if (!this.isRecording || !this.connectionOpen || !this.liveSession) {
+                    if (this.isRecording) {
                         this.warn(`Recording stopping mid-stream: Session/Connection invalid...`)
+                        this.stopRecording(true) // Force stop if state is inconsistent
                     }
-                    this.stopRecording(true) // Force stop if state is inconsistent or mic is gone
                     return
                 }
 
